@@ -419,6 +419,16 @@
   }
 
   .instruction-icon { font-size: 32px; margin-bottom: 4px; }
+
+  .version-tag {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.25);
+    letter-spacing: 1px;
+    font-weight: 400;
+  }
 </style>
 </head>
 <body>
@@ -475,6 +485,7 @@
     Golden cans = bonus points.
   </div>
   <button class="btn" id="btn-start" onclick="requestPermissions()">START GAME</button>
+  <div class="version-tag">v2.0.0</div>
 </div>
 
 <!-- Countdown -->
