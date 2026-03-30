@@ -3,25 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Coca-Cola Catch AR</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<title>Coca-Cola Catch — Gyro Debug</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  :root {
-    --coke-red: #F40009;
-    --coke-dark: #B8000A;
-    --coke-gold: #FFD700;
-    --coke-white: #FFFFFF;
-  }
 
   body {
     overflow: hidden;
     touch-action: none;
     background: #000;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'IBM Plex Mono', monospace;
     -webkit-user-select: none;
     user-select: none;
     position: fixed;
@@ -37,397 +29,169 @@
     z-index: 0;
   }
 
-  #game-canvas {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    z-index: 1;
-  }
-
-  .overlay { position: fixed; z-index: 10; pointer-events: none; }
-
-  /* HUD */
-  #hud {
-    top: 0; left: 0; right: 0;
-    padding: 16px 20px;
-    display: none;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
-
-  .hud-box {
-    background: rgba(0,0,0,0.55);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-radius: 14px;
-    padding: 8px 16px;
-    border: 1px solid rgba(255,255,255,0.15);
-  }
-
-  .hud-label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: rgba(255,255,255,0.6);
-    font-weight: 600;
-  }
-
-  .hud-value {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 36px;
-    color: var(--coke-white);
-    line-height: 1;
-  }
-
-  #hud-timer .hud-value { color: var(--coke-gold); }
-
-  /* Direction indicators */
-  #dir-left, #dir-right {
-    position: fixed;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 10;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-
-  #dir-left { left: 8px; }
-  #dir-right { right: 8px; }
-
-  .dir-arrow {
-    font-size: 36px;
-    color: var(--coke-gold);
-    text-shadow: 0 0 20px rgba(255,215,0,0.6);
-    animation: pulse-arrow 1s ease-in-out infinite;
-  }
-
-  @keyframes pulse-arrow {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
-  }
-
-  .dir-count {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 18px;
-    color: var(--coke-white);
-    text-align: center;
-    margin-top: 2px;
-  }
-
-  /* Combo display */
-  .hud-combo {
-    position: fixed;
-    top: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 10;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 28px;
-    color: var(--coke-gold);
-    text-shadow: 0 0 20px rgba(255,215,0,0.6);
-    opacity: 0;
-    transition: opacity 0.2s;
-    pointer-events: none;
-  }
-
-  .hud-combo.active { opacity: 1; }
-
-  /* Catch feedback */
-  .catch-flash {
-    position: fixed;
-    z-index: 15;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 48px;
-    color: var(--coke-gold);
-    text-shadow: 0 0 30px rgba(255,215,0,0.8);
-    pointer-events: none;
-    animation: floatUp 0.8s ease-out forwards;
-  }
-
-  @keyframes floatUp {
-    0% { opacity: 1; transform: translate(-50%, 0) scale(1); }
-    100% { opacity: 0; transform: translate(-50%, -80px) scale(1.5); }
-  }
-
-  /* Screens */
-  .screen {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    transition: opacity 0.5s;
-  }
-
-  .screen.hidden { opacity: 0; pointer-events: none; }
-
-  #start-screen {
-    background: linear-gradient(180deg, rgba(180,0,8,0.92) 0%, rgba(0,0,0,0.95) 100%);
-  }
-
-  .logo-text {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 64px;
-    color: var(--coke-white);
-    line-height: 0.9;
-    text-shadow: 0 4px 30px rgba(244,0,9,0.6);
-  }
-
-  .logo-sub {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 32px;
-    color: var(--coke-gold);
-    letter-spacing: 8px;
-    margin-top: 4px;
-    text-align: center;
-  }
-
-  .game-desc {
-    color: rgba(255,255,255,0.7);
-    font-size: 16px;
-    text-align: center;
-    max-width: 280px;
-    margin: 30px 0 40px;
-    line-height: 1.5;
-  }
-
-  .btn {
-    pointer-events: all;
-    background: var(--coke-red);
-    color: white;
-    border: none;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 28px;
-    letter-spacing: 3px;
-    padding: 16px 50px;
-    border-radius: 50px;
-    cursor: pointer;
-    box-shadow: 0 8px 40px rgba(244,0,9,0.5);
-    transition: transform 0.15s;
-  }
-
-  .btn:active { transform: scale(0.96); }
-
-  /* End screen */
-  #end-screen {
-    background: linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(180,0,8,0.9) 100%);
-  }
-
-  .end-label {
-    font-size: 14px;
-    text-transform: uppercase;
-    letter-spacing: 4px;
-    color: rgba(255,255,255,0.5);
-    margin-bottom: 8px;
-    font-weight: 600;
-  }
-
-  .end-score {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 96px;
-    color: var(--coke-white);
-    line-height: 1;
-    text-shadow: 0 0 60px rgba(244,0,9,0.6);
-  }
-
-  .end-stats {
-    display: flex;
-    gap: 30px;
-    margin: 24px 0 32px;
-  }
-
-  .end-stat { text-align: center; }
-
-  .end-stat-val {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 36px;
-    color: var(--coke-gold);
-  }
-
-  .end-stat-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: rgba(255,255,255,0.5);
-    font-weight: 600;
-  }
-
-  .promo-box {
-    background: rgba(255,215,0,0.1);
-    border: 1px solid rgba(255,215,0,0.3);
-    border-radius: 14px;
-    padding: 16px 28px;
-    text-align: center;
-    margin-bottom: 28px;
-  }
-
-  .promo-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 3px;
-    color: var(--coke-gold);
-    margin-bottom: 4px;
-    font-weight: 600;
-  }
-
-  .promo-code {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 32px;
-    color: var(--coke-white);
-    letter-spacing: 6px;
-  }
-
-  .share-row {
-    display: flex;
-    gap: 12px;
-    margin-top: 12px;
-  }
-
-  .share-btn {
-    pointer-events: all;
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.2);
-    color: white;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 600;
-    font-size: 14px;
-    padding: 10px 20px;
-    border-radius: 10px;
-    cursor: pointer;
-  }
-
-  .share-btn:active { background: rgba(255,255,255,0.2); }
-
-  /* Countdown */
-  #countdown {
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0,0,0,0.6);
-    pointer-events: none;
-  }
-
-  #countdown.hidden { display: none; }
-
-  #countdown-num {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 120px;
-    color: var(--coke-white);
-    text-shadow: 0 0 60px rgba(244,0,9,0.8);
-    animation: countPulse 0.8s ease-out;
-  }
-
-  @keyframes countPulse {
-    0% { transform: scale(2); opacity: 0; }
-    50% { opacity: 1; }
-    100% { transform: scale(1); opacity: 1; }
-  }
-
   .no-camera-bg {
     position: fixed;
     inset: 0;
     z-index: 0;
-    background: radial-gradient(ellipse at center, #1a0005 0%, #000 100%);
+    background: radial-gradient(ellipse at center, #1a1a1a 0%, #000 100%);
   }
 
-  .particle {
+  /* Debug HUD */
+  #debug-hud {
     position: fixed;
-    z-index: 15;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    pointer-events: none;
-    animation: particleBurst 0.6s ease-out forwards;
-  }
-
-  @keyframes particleBurst {
-    0% { opacity: 1; transform: translate(0,0) scale(1); }
-    100% { opacity: 0; transform: translate(var(--px), var(--py)) scale(0); }
-  }
-
-  /* Radar minimap */
-  #radar {
-    position: fixed;
-    bottom: 180px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 60px;
+    left: 20px;
     z-index: 10;
-    width: 200px;
-    height: 24px;
-    pointer-events: none;
-    display: none;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 16px 20px;
+    min-width: 260px;
   }
 
-  #radar-bar {
-    width: 100%;
-    height: 4px;
-    background: rgba(255,255,255,0.15);
-    border-radius: 2px;
-    position: relative;
-    top: 10px;
+  .debug-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
   }
 
-  #radar-viewport {
-    position: absolute;
-    top: 8px;
+  .debug-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .debug-row:last-child { margin-bottom: 0; }
+
+  .debug-label {
+    font-size: 14px;
+    font-weight: 600;
+    width: 24px;
+    flex-shrink: 0;
+  }
+
+  .debug-label.x-axis { color: #ff6b6b; }
+  .debug-label.y-axis { color: #51cf66; }
+  .debug-label.z-axis { color: #339af0; }
+
+  .debug-bar-track {
+    flex: 1;
     height: 8px;
-    background: rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.08);
     border-radius: 4px;
-    border: 1px solid rgba(255,255,255,0.5);
-    transition: left 0.1s;
+    margin: 0 12px;
+    position: relative;
+    overflow: hidden;
   }
 
-  .radar-dot {
+  .debug-bar-fill {
     position: absolute;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--coke-red);
-    top: 9px;
-    transform: translateX(-50%);
+    top: 0; left: 0;
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.05s linear;
   }
 
-  .radar-dot.gold { background: var(--coke-gold); }
+  .debug-bar-fill.x-axis { background: #ff6b6b; }
+  .debug-bar-fill.y-axis { background: #51cf66; }
+  .debug-bar-fill.z-axis { background: #339af0; }
 
-  /* Instruction overlay */
-  #instruction {
+  .debug-val {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.8);
+    width: 50px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Raw values panel */
+  #debug-raw {
     position: fixed;
-    bottom: 220px;
+    top: 60px;
+    right: 20px;
+    z-index: 10;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 16px 20px;
+    min-width: 200px;
+  }
+
+  .raw-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+
+  .raw-row:last-child { margin-bottom: 0; }
+
+  .raw-label { color: rgba(255,255,255,0.4); }
+  .raw-val { color: rgba(255,255,255,0.7); font-variant-numeric: tabular-nums; }
+
+  /* Status */
+  #gyro-status {
+    position: fixed;
+    bottom: 40px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 10;
-    pointer-events: none;
+    font-size: 13px;
+    color: rgba(255,255,255,0.4);
     text-align: center;
-    opacity: 0;
-    transition: opacity 0.5s;
   }
 
-  #instruction.visible { opacity: 1; }
-
-  .instruction-text {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 22px;
-    color: var(--coke-white);
-    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
-    white-space: nowrap;
+  .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
   }
 
-  .instruction-icon { font-size: 32px; margin-bottom: 4px; }
+  .status-dot.off { background: #ff6b6b; }
+  .status-dot.on { background: #51cf66; }
+
+  /* Start button */
+  #start-btn {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 20;
+    background: rgba(244,0,9,0.9);
+    color: white;
+    border: none;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 16px 40px;
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 2px;
+  }
+
+  #start-btn:active { transform: translate(-50%, -50%) scale(0.96); }
+  #start-btn.hidden { display: none; }
 
   .version-tag {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
+    position: fixed;
+    bottom: 12px;
+    right: 16px;
+    z-index: 10;
     font-size: 11px;
-    color: rgba(255,255,255,0.25);
-    letter-spacing: 1px;
-    font-weight: 400;
+    color: rgba(255,255,255,0.2);
   }
 </style>
 </head>
@@ -435,615 +199,177 @@
 
 <div class="no-camera-bg" id="fallback-bg"></div>
 <video id="camera-feed" autoplay playsinline muted></video>
-<canvas id="game-canvas"></canvas>
 
-<!-- HUD -->
-<div id="hud" class="overlay">
-  <div class="hud-box" id="hud-score">
-    <div class="hud-label">Score</div>
-    <div class="hud-value" id="score-val">0</div>
+<button id="start-btn" onclick="init()">TAP TO START</button>
+
+<!-- Normalized 0-1 readout -->
+<div id="debug-hud" style="display:none;">
+  <div class="debug-title">Gyro — Normalized 0–1</div>
+  <div class="debug-row">
+    <div class="debug-label x-axis">X</div>
+    <div class="debug-bar-track"><div class="debug-bar-fill x-axis" id="bar-x"></div></div>
+    <div class="debug-val" id="val-x">0.000</div>
   </div>
-  <div class="hud-box" id="hud-timer">
-    <div class="hud-label">Time</div>
-    <div class="hud-value" id="timer-val">60</div>
+  <div class="debug-row">
+    <div class="debug-label y-axis">Y</div>
+    <div class="debug-bar-track"><div class="debug-bar-fill y-axis" id="bar-y"></div></div>
+    <div class="debug-val" id="val-y">0.000</div>
   </div>
-</div>
-
-<div class="hud-combo" id="combo-display">COMBO x2</div>
-
-<!-- Direction indicators -->
-<div id="dir-left">
-  <div class="dir-arrow">◀</div>
-  <div class="dir-count" id="dir-left-count"></div>
-</div>
-<div id="dir-right">
-  <div class="dir-arrow">▶</div>
-  <div class="dir-count" id="dir-right-count"></div>
-</div>
-
-<!-- Radar minimap -->
-<div id="radar">
-  <div id="radar-bar"></div>
-  <div id="radar-viewport"></div>
-</div>
-
-<!-- Turn instruction -->
-<div id="instruction">
-  <div class="instruction-icon">📱</div>
-  <div class="instruction-text">TURN YOUR PHONE TO FIND CANS</div>
-</div>
-
-<!-- Start Screen -->
-<div class="screen" id="start-screen">
-  <div class="logo-container">
-    <div class="logo-text">COCA-COLA</div>
-    <div class="logo-sub">C A T C H</div>
-  </div>
-  <div class="game-desc">
-    Turn your phone to look around the sky.<br>
-    Catch falling cans in your bucket!<br>
-    Golden cans = bonus points.
-  </div>
-  <button class="btn" id="btn-start" onclick="requestPermissions()">START GAME</button>
-  <div class="version-tag">v2.0.0</div>
-</div>
-
-<!-- Countdown -->
-<div id="countdown" class="hidden">
-  <div id="countdown-num">3</div>
-</div>
-
-<!-- End Screen -->
-<div class="screen hidden" id="end-screen">
-  <div class="end-label">Your Score</div>
-  <div class="end-score" id="final-score">0</div>
-  <div class="end-stats">
-    <div class="end-stat">
-      <div class="end-stat-val" id="final-cans">0</div>
-      <div class="end-stat-label">Cans Caught</div>
-    </div>
-    <div class="end-stat">
-      <div class="end-stat-val" id="final-combo">0</div>
-      <div class="end-stat-label">Best Combo</div>
-    </div>
-    <div class="end-stat">
-      <div class="end-stat-val" id="final-gold">0</div>
-      <div class="end-stat-label">Gold Cans</div>
-    </div>
-  </div>
-  <div class="promo-box">
-    <div class="promo-label">Your Promo Code</div>
-    <div class="promo-code" id="promo-code">COKE-XXXX</div>
-  </div>
-  <button class="btn" onclick="restartGame()">PLAY AGAIN</button>
-  <div class="share-row">
-    <button class="share-btn" onclick="shareScore('copy')">📋 Copy Score</button>
-    <button class="share-btn" onclick="shareScore('share')">📤 Share</button>
+  <div class="debug-row">
+    <div class="debug-label z-axis">Z</div>
+    <div class="debug-bar-track"><div class="debug-bar-fill z-axis" id="bar-z"></div></div>
+    <div class="debug-val" id="val-z">0.000</div>
   </div>
 </div>
+
+<!-- Raw degree values -->
+<div id="debug-raw" style="display:none;">
+  <div class="debug-title">Raw Degrees</div>
+  <div class="raw-row">
+    <span class="raw-label">alpha (yaw)</span>
+    <span class="raw-val" id="raw-alpha">—</span>
+  </div>
+  <div class="raw-row">
+    <span class="raw-label">beta (pitch)</span>
+    <span class="raw-val" id="raw-beta">—</span>
+  </div>
+  <div class="raw-row">
+    <span class="raw-label">gamma (tilt)</span>
+    <span class="raw-val" id="raw-gamma">—</span>
+  </div>
+  <div class="raw-row" style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1);">
+    <span class="raw-label">baseline α</span>
+    <span class="raw-val" id="raw-baseline">—</span>
+  </div>
+</div>
+
+<div id="gyro-status">
+  <span class="status-dot off" id="status-dot"></span>
+  <span id="status-text">Gyroscope: waiting...</span>
+</div>
+
+<div class="version-tag">v2.1.0</div>
 
 <script>
 // ============================================================
-// GAME CONFIG
-// ============================================================
-const WORLD_WIDTH = 40;
-const GAME_DURATION = 60;
-const BUCKET_WIDTH = 1.8;
-const BUCKET_HEIGHT = 1.2;
-const CATCH_TOLERANCE = 1.2;
-
-// ============================================================
 // STATE
 // ============================================================
-const state = {
-  score: 0, timeLeft: GAME_DURATION, cans: [],
-  combo: 0, bestCombo: 0, totalCaught: 0, goldCaught: 0,
-  isPlaying: false, difficulty: 1, spawnRate: 1400, lastSpawn: 0,
-  yawBaseline: null, hasGyro: false, rawAlpha: 0, smoothYaw: 0,
-  touchDragging: false, touchStartX: 0, touchYawStart: 0, touchYaw: 0,
-  mouseYaw: 0, mouseDragging: false, mouseStartX: 0, mouseYawStart: 0,
-};
+let gyroActive = false;
+let alphaBaseline = null;
+let rawAlpha = 0, rawBeta = 0, rawGamma = 0;
+
+// Normalized 0-1 values
+// X = gamma (left/right tilt): -90..90 → 0..1
+// Y = beta (forward/back pitch): -180..180 → 0..1
+// Z = alpha (yaw/compass) relative to baseline: -180..180 → 0..1
+let normX = 0.5, normY = 0.5, normZ = 0.5;
 
 // ============================================================
-// THREE.JS SETUP
+// INIT
 // ============================================================
-const canvas = document.getElementById('game-canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.outputEncoding = THREE.sRGBEncoding;
+async function init() {
+  document.getElementById('start-btn').classList.add('hidden');
+  document.getElementById('debug-hud').style.display = 'block';
+  document.getElementById('debug-raw').style.display = 'block';
 
-const scene = new THREE.Scene();
-const aspect = window.innerWidth / window.innerHeight;
-const viewH = 12;
-let viewW = viewH * aspect;
-const camera = new THREE.OrthographicCamera(-viewW/2, viewW/2, viewH/2, -viewH/2, 0.1, 100);
-camera.position.z = 10;
-
-scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-dirLight.position.set(3, 5, 8);
-scene.add(dirLight);
-const rimLight = new THREE.DirectionalLight(0xff4444, 0.3);
-rimLight.position.set(-3, 2, -4);
-scene.add(rimLight);
-
-// ============================================================
-// BUCKET
-// ============================================================
-let bucketGroup;
-
-function createBucket() {
-  bucketGroup = new THREE.Group();
-  const bw = BUCKET_WIDTH / 2;
-  const tw = bw * 0.75;
-  const h = BUCKET_HEIGHT;
-
-  // Front face
-  const shape = new THREE.Shape();
-  shape.moveTo(-bw, 0); shape.lineTo(bw, 0);
-  shape.lineTo(tw, h); shape.lineTo(-tw, h); shape.closePath();
-
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.6, bevelEnabled: false });
-  const mat = new THREE.MeshPhongMaterial({
-    color: 0xD40009, specular: 0x666666, shininess: 80,
-    transparent: true, opacity: 0.85
-  });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.z = -0.3;
-  bucketGroup.add(mesh);
-
-  // Rim
-  const rimGeo = new THREE.TorusGeometry(bw * 0.85, 0.06, 8, 32, Math.PI);
-  const rimMat = new THREE.MeshPhongMaterial({ color: 0xC0C0C0, specular: 0xffffff, shininess: 200 });
-  const rim = new THREE.Mesh(rimGeo, rimMat);
-  rim.position.y = h; rim.rotation.z = Math.PI;
-  bucketGroup.add(rim);
-
-  // Label band
-  const bandGeo = new THREE.PlaneGeometry(BUCKET_WIDTH * 0.8, 0.3);
-  const band = new THREE.Mesh(bandGeo, new THREE.MeshPhongMaterial({ color: 0xffffff }));
-  band.position.set(0, h * 0.4, 0.32);
-  bucketGroup.add(band);
-
-  bucketGroup.position.set(0, -viewH / 2 + 0.3, 1);
-  scene.add(bucketGroup);
-}
-createBucket();
-
-// ============================================================
-// CAN CREATION
-// ============================================================
-function createCan(isGold) {
-  const group = new THREE.Group();
-  const r = isGold ? 0.3 : 0.28;
-  const h = isGold ? 0.9 : 0.85;
-
-  const bodyMat = new THREE.MeshPhongMaterial({
-    color: isGold ? 0xFFD700 : 0xD40009,
-    specular: 0xffffff, shininess: isGold ? 200 : 100,
-    emissive: isGold ? 0x665500 : 0x330000,
-    emissiveIntensity: isGold ? 0.4 : 0.2
-  });
-  group.add(new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 24), bodyMat));
-
-  const rimMat = new THREE.MeshPhongMaterial({
-    color: isGold ? 0xFFF0A0 : 0xC0C0C0, specular: 0xffffff, shininess: 200
-  });
-  const rimGeo = new THREE.TorusGeometry(r - 0.02, 0.03, 8, 24);
-
-  const topRim = new THREE.Mesh(rimGeo, rimMat);
-  topRim.position.y = h/2; topRim.rotation.x = Math.PI/2;
-  group.add(topRim);
-
-  const bottomRim = topRim.clone();
-  bottomRim.position.y = -h/2;
-  group.add(bottomRim);
-
-  const cap = new THREE.Mesh(new THREE.CircleGeometry(r - 0.02, 24), rimMat);
-  cap.position.y = h/2 + 0.01; cap.rotation.x = -Math.PI/2;
-  group.add(cap);
-
-  if (!isGold) {
-    const stripe = new THREE.Mesh(
-      new THREE.CylinderGeometry(r + 0.005, r + 0.005, 0.15, 24),
-      new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 60 })
-    );
-    stripe.position.y = 0.05;
-    group.add(stripe);
-  }
-
-  if (isGold) {
-    const star = new THREE.Shape();
-    for (let i = 0; i < 10; i++) {
-      const sr = i % 2 === 0 ? 0.12 : 0.05;
-      const a = (i * Math.PI) / 5 - Math.PI / 2;
-      i === 0 ? star.moveTo(Math.cos(a)*sr, Math.sin(a)*sr) : star.lineTo(Math.cos(a)*sr, Math.sin(a)*sr);
-    }
-    star.closePath();
-    const starMesh = new THREE.Mesh(
-      new THREE.ShapeGeometry(star),
-      new THREE.MeshPhongMaterial({ color: 0xffffff, emissive: 0xFFFF00, emissiveIntensity: 0.3, side: THREE.DoubleSide })
-    );
-    starMesh.position.set(0, 0, r + 0.01);
-    group.add(starMesh);
-  }
-
-  return group;
-}
-
-// ============================================================
-// SPAWNING
-// ============================================================
-function spawnCan() {
-  const isGold = Math.random() < 0.12;
-  const mesh = createCan(isGold);
-  const worldX = (Math.random() - 0.5) * WORLD_WIDTH;
-  mesh.position.set(worldX, viewH/2 + 2, 0);
-  mesh.rotation.x = Math.random() * Math.PI;
-  mesh.rotation.z = Math.random() * 0.5 - 0.25;
-  scene.add(mesh);
-
-  state.cans.push({
-    mesh, isGold, worldX,
-    speed: (1.5 + Math.random() * 1.5) * state.difficulty,
-    rotSpeedX: (Math.random() - 0.5) * 3,
-    rotSpeedZ: (Math.random() - 0.5) * 2,
-    wobble: Math.random() * Math.PI * 2,
-    wobbleSpeed: 1 + Math.random() * 2,
-    caught: false
-  });
-}
-
-// ============================================================
-// CAMERA ACCESS
-// ============================================================
-async function initCamera() {
+  // Camera
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
     });
     document.getElementById('camera-feed').srcObject = stream;
     document.getElementById('fallback-bg').style.display = 'none';
-  } catch (e) { console.log('Camera not available'); }
-}
+  } catch (e) {
+    console.log('Camera not available');
+  }
 
-// ============================================================
-// GYROSCOPE — YAW
-// ============================================================
-function initGyro() {
+  // Gyroscope
   const needsPerm = typeof DeviceOrientationEvent !== 'undefined'
     && typeof DeviceOrientationEvent.requestPermission === 'function';
 
   if (needsPerm) {
-    DeviceOrientationEvent.requestPermission().then(r => {
-      if (r === 'granted') { state.hasGyro = true; window.addEventListener('deviceorientation', onOrientation); }
-    }).catch(() => {});
+    try {
+      const resp = await DeviceOrientationEvent.requestPermission();
+      if (resp === 'granted') {
+        window.addEventListener('deviceorientation', onOrientation);
+      } else {
+        setStatus(false, 'Gyroscope: permission denied');
+      }
+    } catch (e) {
+      setStatus(false, 'Gyroscope: permission error');
+    }
   } else if ('DeviceOrientationEvent' in window) {
-    state.hasGyro = true;
     window.addEventListener('deviceorientation', onOrientation);
-    setTimeout(() => { if (state.rawAlpha === 0) state.hasGyro = false; }, 1500);
+    setTimeout(() => {
+      if (!gyroActive) setStatus(false, 'Gyroscope: not available');
+    }, 2000);
+  } else {
+    setStatus(false, 'Gyroscope: not supported');
   }
+
+  requestAnimationFrame(update);
 }
 
+// ============================================================
+// ORIENTATION HANDLER
+// ============================================================
 function onOrientation(e) {
-  if (e.alpha === null) return;
-  state.hasGyro = true;
-  state.rawAlpha = e.alpha;
-  if (state.yawBaseline === null) state.yawBaseline = e.alpha;
-}
+  if (e.alpha === null && e.beta === null && e.gamma === null) return;
 
-function getYawDelta() {
-  if (!state.hasGyro || state.yawBaseline === null) return 0;
-  let d = state.rawAlpha - state.yawBaseline;
-  if (d > 180) d -= 360;
-  if (d < -180) d += 360;
-  return d;
-}
-
-// ============================================================
-// TOUCH / MOUSE FALLBACK
-// ============================================================
-canvas.addEventListener('touchstart', e => {
-  state.touchDragging = true;
-  state.touchStartX = e.touches[0].clientX;
-  state.touchYawStart = state.touchYaw;
-}, { passive: true });
-
-canvas.addEventListener('touchmove', e => {
-  if (!state.touchDragging) return;
-  e.preventDefault();
-  const dx = e.touches[0].clientX - state.touchStartX;
-  state.touchYaw = state.touchYawStart - (dx / window.innerWidth) * 60;
-  state.touchYaw = Math.max(-90, Math.min(90, state.touchYaw));
-}, { passive: false });
-
-canvas.addEventListener('touchend', () => { state.touchDragging = false; }, { passive: true });
-
-canvas.addEventListener('mousedown', e => {
-  state.mouseDragging = true;
-  state.mouseStartX = e.clientX;
-  state.mouseYawStart = state.mouseYaw;
-});
-canvas.addEventListener('mousemove', e => {
-  if (!state.mouseDragging) return;
-  const dx = e.clientX - state.mouseStartX;
-  state.mouseYaw = state.mouseYawStart - (dx / window.innerWidth) * 60;
-  state.mouseYaw = Math.max(-90, Math.min(90, state.mouseYaw));
-});
-canvas.addEventListener('mouseup', () => state.mouseDragging = false);
-canvas.addEventListener('mouseleave', () => state.mouseDragging = false);
-
-// ============================================================
-// GAME FLOW
-// ============================================================
-async function requestPermissions() {
-  document.getElementById('start-screen').classList.add('hidden');
-  await initCamera();
-  initGyro();
-  startCountdown();
-}
-
-function startCountdown() {
-  const el = document.getElementById('countdown');
-  const num = document.getElementById('countdown-num');
-  el.classList.remove('hidden');
-  let c = 3;
-  num.textContent = c;
-  num.style.animation = 'none'; void num.offsetWidth; num.style.animation = 'countPulse 0.8s ease-out';
-
-  const iv = setInterval(() => {
-    c--;
-    if (c > 0) {
-      num.textContent = c;
-      num.style.animation = 'none'; void num.offsetWidth; num.style.animation = 'countPulse 0.8s ease-out';
-    } else {
-      num.textContent = 'GO!';
-      num.style.animation = 'none'; void num.offsetWidth; num.style.animation = 'countPulse 0.8s ease-out';
-      setTimeout(() => { el.classList.add('hidden'); startGame(); }, 600);
-      clearInterval(iv);
-    }
-  }, 900);
-}
-
-function startGame() {
-  Object.assign(state, {
-    score: 0, timeLeft: GAME_DURATION, combo: 0, bestCombo: 0,
-    totalCaught: 0, goldCaught: 0, isPlaying: true, difficulty: 1,
-    spawnRate: 1400, lastSpawn: 0, smoothYaw: 0, touchYaw: 0, mouseYaw: 0
-  });
-  state.yawBaseline = state.rawAlpha || 0;
-  state.cans.forEach(c => scene.remove(c.mesh));
-  state.cans = [];
-
-  document.getElementById('hud').style.display = 'flex';
-  document.getElementById('radar').style.display = 'block';
-  document.getElementById('score-val').textContent = '0';
-  document.getElementById('timer-val').textContent = GAME_DURATION;
-
-  const instr = document.getElementById('instruction');
-  instr.classList.add('visible');
-  setTimeout(() => instr.classList.remove('visible'), 4000);
-
-  state.timerInterval = setInterval(() => {
-    state.timeLeft--;
-    document.getElementById('timer-val').textContent = state.timeLeft;
-    if (state.timeLeft <= 40) state.difficulty = 1.2;
-    if (state.timeLeft <= 25) state.difficulty = 1.5;
-    if (state.timeLeft <= 10) state.difficulty = 1.8;
-    state.spawnRate = Math.max(500, 1400 - (GAME_DURATION - state.timeLeft) * 15);
-    if (state.timeLeft <= 0) endGame();
-  }, 1000);
-}
-
-function endGame() {
-  state.isPlaying = false;
-  clearInterval(state.timerInterval);
-  document.getElementById('hud').style.display = 'none';
-  document.getElementById('radar').style.display = 'none';
-  document.getElementById('dir-left').style.opacity = 0;
-  document.getElementById('dir-right').style.opacity = 0;
-
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = 'COKE-';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-
-  document.getElementById('final-score').textContent = state.score;
-  document.getElementById('final-cans').textContent = state.totalCaught;
-  document.getElementById('final-combo').textContent = 'x' + state.bestCombo;
-  document.getElementById('final-gold').textContent = state.goldCaught;
-  document.getElementById('promo-code').textContent = code;
-
-  state.cans.forEach(c => scene.remove(c.mesh));
-  state.cans = [];
-
-  setTimeout(() => document.getElementById('end-screen').classList.remove('hidden'), 500);
-}
-
-function restartGame() {
-  document.getElementById('end-screen').classList.add('hidden');
-  startCountdown();
-}
-
-// ============================================================
-// CATCH DETECTION
-// ============================================================
-function checkCatch(can) {
-  const screenX = can.mesh.position.x - camera.position.x;
-  const screenY = can.mesh.position.y;
-  const bucketTop = -viewH/2 + 0.3 + BUCKET_HEIGHT;
-  return Math.abs(screenX) < CATCH_TOLERANCE && screenY < bucketTop && screenY > bucketTop - 1.0;
-}
-
-function onCatch(can) {
-  can.caught = true;
-  state.combo++; state.totalCaught++;
-  if (can.isGold) state.goldCaught++;
-  if (state.combo > state.bestCombo) state.bestCombo = state.combo;
-
-  const pts = (can.isGold ? 50 : 10) * Math.min(state.combo, 10);
-  state.score += pts;
-  document.getElementById('score-val').textContent = state.score;
-
-  if (state.combo >= 2) {
-    const el = document.getElementById('combo-display');
-    el.textContent = `COMBO x${state.combo}!`;
-    el.classList.add('active');
-    clearTimeout(state.comboTimeout);
-    state.comboTimeout = setTimeout(() => el.classList.remove('active'), 1500);
+  if (!gyroActive) {
+    gyroActive = true;
+    setStatus(true, 'Gyroscope: active');
   }
 
-  const f = document.createElement('div');
-  f.className = 'catch-flash';
-  f.textContent = `+${pts}`;
-  if (can.isGold) f.style.color = '#FFD700';
-  f.style.left = (window.innerWidth / 2) + 'px';
-  f.style.top = (window.innerHeight - 180) + 'px';
-  document.body.appendChild(f);
-  setTimeout(() => f.remove(), 800);
+  rawAlpha = e.alpha || 0;  // 0–360
+  rawBeta  = e.beta  || 0;  // -180–180
+  rawGamma = e.gamma || 0;  // -90–90
 
-  spawnParticles(window.innerWidth/2, window.innerHeight - 160, can.isGold ? '#FFD700' : '#F40009');
+  if (alphaBaseline === null) alphaBaseline = rawAlpha;
 
-  const start = performance.now(), m = can.mesh;
-  (function shrink(t) {
-    const s = Math.max(0, 1 - (t - start) / 200);
-    m.scale.set(s, s, s);
-    s > 0 ? requestAnimationFrame(shrink) : scene.remove(m);
-  })(start);
-}
+  // X: gamma (left/right tilt)
+  // -90 → 0.0 | 0 → 0.5 | +90 → 1.0
+  normX = Math.max(0, Math.min(1, (rawGamma + 90) / 180));
 
-function spawnParticles(x, y, color) {
-  for (let i = 0; i < 10; i++) {
-    const p = document.createElement('div');
-    p.className = 'particle';
-    p.style.left = x + 'px'; p.style.top = y + 'px';
-    p.style.background = color;
-    const a = (i / 10) * Math.PI * 2, d = 40 + Math.random() * 50;
-    p.style.setProperty('--px', Math.cos(a)*d + 'px');
-    p.style.setProperty('--py', Math.sin(a)*d + 'px');
-    document.body.appendChild(p);
-    setTimeout(() => p.remove(), 600);
-  }
+  // Y: beta (pitch forward/back)
+  // -90 → 0.0 | 0 → 0.5 | +90 → 1.0
+  normY = Math.max(0, Math.min(1, (rawBeta + 90) / 180));
+
+  // Z: alpha relative to baseline (yaw / turning)
+  // -180 → 0.0 | 0 → 0.5 | +180 → 1.0
+  let dAlpha = rawAlpha - alphaBaseline;
+  if (dAlpha > 180) dAlpha -= 360;
+  if (dAlpha < -180) dAlpha += 360;
+  normZ = Math.max(0, Math.min(1, (dAlpha + 180) / 360));
 }
 
 // ============================================================
-// RADAR
+// RENDER LOOP
 // ============================================================
-function updateRadar() {
-  const radar = document.getElementById('radar');
-  const vp = document.getElementById('radar-viewport');
-  radar.querySelectorAll('.radar-dot').forEach(d => d.remove());
+function update() {
+  requestAnimationFrame(update);
 
-  const vpRatio = viewW / WORLD_WIDTH;
-  const vpCenter = (state.smoothYaw + WORLD_WIDTH/2) / WORLD_WIDTH;
-  const vpW = vpRatio * 200;
-  vp.style.width = vpW + 'px';
-  vp.style.left = Math.max(0, Math.min(200 - vpW, vpCenter * 200 - vpW/2)) + 'px';
+  document.getElementById('bar-x').style.width = (normX * 100) + '%';
+  document.getElementById('bar-y').style.width = (normY * 100) + '%';
+  document.getElementById('bar-z').style.width = (normZ * 100) + '%';
 
-  let lc = 0, rc = 0;
-  state.cans.forEach(can => {
-    if (can.caught) return;
-    const nx = (can.worldX + WORLD_WIDTH/2) / WORLD_WIDTH;
-    const dot = document.createElement('div');
-    dot.className = 'radar-dot' + (can.isGold ? ' gold' : '');
-    dot.style.left = (nx * 200) + 'px';
-    radar.appendChild(dot);
-    const sx = can.worldX - state.smoothYaw;
-    if (sx < -viewW/2) lc++;
-    if (sx > viewW/2) rc++;
-  });
+  document.getElementById('val-x').textContent = normX.toFixed(3);
+  document.getElementById('val-y').textContent = normY.toFixed(3);
+  document.getElementById('val-z').textContent = normZ.toFixed(3);
 
-  document.getElementById('dir-left').style.opacity = lc > 0 ? '1' : '0';
-  document.getElementById('dir-right').style.opacity = rc > 0 ? '1' : '0';
-  document.getElementById('dir-left-count').textContent = lc || '';
-  document.getElementById('dir-right-count').textContent = rc || '';
+  document.getElementById('raw-alpha').textContent = rawAlpha.toFixed(1) + '°';
+  document.getElementById('raw-beta').textContent  = rawBeta.toFixed(1) + '°';
+  document.getElementById('raw-gamma').textContent = rawGamma.toFixed(1) + '°';
+  document.getElementById('raw-baseline').textContent =
+    alphaBaseline !== null ? alphaBaseline.toFixed(1) + '°' : '—';
 }
 
 // ============================================================
-// MAIN LOOP
+// STATUS
 // ============================================================
-let lastTime = 0;
-
-function gameLoop(timestamp) {
-  requestAnimationFrame(gameLoop);
-  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
-  lastTime = timestamp;
-
-  if (!state.isPlaying) { renderer.render(scene, camera); return; }
-
-  // --- YAW → CAMERA ---
-  let targetYaw = 0;
-  if (state.hasGyro) {
-    targetYaw = -(getYawDelta() / 90) * (WORLD_WIDTH / 2);
-  } else {
-    const fd = state.touchDragging ? state.touchYaw : state.mouseYaw;
-    targetYaw = (fd / 90) * (WORLD_WIDTH / 2);
-  }
-  targetYaw = Math.max(-WORLD_WIDTH/2 + viewW/2, Math.min(WORLD_WIDTH/2 - viewW/2, targetYaw));
-  state.smoothYaw += (targetYaw - state.smoothYaw) * 0.12;
-
-  camera.position.x = state.smoothYaw;
-  bucketGroup.position.x = state.smoothYaw;
-
-  // --- SPAWN ---
-  if (timestamp - state.lastSpawn > state.spawnRate) {
-    spawnCan(); state.lastSpawn = timestamp;
-    if (state.difficulty > 1.3 && Math.random() < 0.3) setTimeout(spawnCan, 150);
-  }
-
-  // --- UPDATE CANS ---
-  for (let i = state.cans.length - 1; i >= 0; i--) {
-    const c = state.cans[i];
-    if (c.caught) continue;
-    c.mesh.position.y -= c.speed * dt;
-    c.mesh.rotation.x += c.rotSpeedX * dt;
-    c.mesh.rotation.z += c.rotSpeedZ * dt;
-    c.wobble += c.wobbleSpeed * dt;
-    c.worldX += Math.sin(c.wobble) * 0.3 * dt;
-    c.mesh.position.x = c.worldX;
-
-    if (c.isGold) c.mesh.children[0].material.emissiveIntensity = Math.sin(timestamp * 0.005) * 0.15 + 0.4;
-
-    if (c.mesh.position.y < -viewH/2 + BUCKET_HEIGHT + 1.0 && c.mesh.position.y > -viewH/2 - 0.5) {
-      if (checkCatch(c)) { onCatch(c); continue; }
-    }
-
-    if (c.mesh.position.y < -viewH/2 - 2) {
-      scene.remove(c.mesh); state.cans.splice(i, 1); state.combo = 0;
-    }
-  }
-
-  updateRadar();
-  renderer.render(scene, camera);
-}
-requestAnimationFrame(gameLoop);
-
-// ============================================================
-// RESIZE
-// ============================================================
-window.addEventListener('resize', () => {
-  const a = window.innerWidth / window.innerHeight;
-  viewW = viewH * a;
-  camera.left = -viewW/2; camera.right = viewW/2;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-// ============================================================
-// SHARE
-// ============================================================
-function shareScore(method) {
-  const text = `🥤 I scored ${state.score} points in Coca-Cola Catch!\n🥇 ${state.totalCaught} cans caught | Best combo: x${state.bestCombo}\n\nCan you beat my score?`;
-  if (method === 'share' && navigator.share) {
-    navigator.share({ title: 'Coca-Cola Catch', text }).catch(() => {});
-  } else {
-    navigator.clipboard.writeText(text).then(() => {
-      const btn = event.target;
-      const orig = btn.textContent;
-      btn.textContent = '✓ Copied!';
-      setTimeout(() => btn.textContent = orig, 2000);
-    }).catch(() => {});
-  }
+function setStatus(active, text) {
+  document.getElementById('status-dot').className = 'status-dot ' + (active ? 'on' : 'off');
+  document.getElementById('status-text').textContent = text;
 }
 </script>
 </body>
