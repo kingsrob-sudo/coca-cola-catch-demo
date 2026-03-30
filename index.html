@@ -159,7 +159,7 @@
     font-size: 14px;
     font-weight: 600;
     color: rgba(255,255,255,0.8);
-    width: 50px;
+    width: 70px;
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
@@ -270,13 +270,13 @@
 <canvas id="game-canvas"></canvas>
 
 <div id="start-screen">
-  <div class="start-version">v2.5.1</div>
-  <div class="start-label">Dev Build — Z Inverted</div>
+  <div class="start-version">v2.6.0</div>
+  <div class="start-label">Dev Build — No Wrap</div>
   <button id="start-btn" onclick="init()">TAP TO START</button>
 </div>
 
 <div id="debug-hud">
-  <div class="debug-title">Gyro — Normalized 0–1</div>
+  <div class="debug-title">Gyro Debug</div>
   <div class="debug-row">
     <div class="debug-label x-axis">X</div>
     <div class="debug-bar-track"><div class="debug-bar-fill x-axis" id="bar-x"></div></div>
@@ -290,7 +290,7 @@
   <div class="debug-row">
     <div class="debug-label z-axis">Z</div>
     <div class="debug-bar-track"><div class="debug-bar-fill z-axis" id="bar-z"></div></div>
-    <div class="debug-val" id="val-z">0.000</div>
+    <div class="debug-val" id="val-z">0.0°</div>
   </div>
 </div>
 
@@ -318,10 +318,13 @@
 // GYRO STATE
 // ============================================================
 let gyroActive = false;
-let alphaBaseline = null;
 let betaBaseline = null;
 let rawAlpha = 0, rawBeta = 0, rawGamma = 0;
-let normX = 0.5, normY = 0.5, normZ = 0.5;
+let normX = 0.5, normY = 0.5;
+
+// Z uses accumulated delta — no wrapping
+let prevAlpha = null;
+let accumulatedZ = 0; // total degrees turned from start, unbounded
 
 let yOffset = 0, zOffset = 0;
 let smoothYOffset = 0, smoothZOffset = 0;
@@ -513,7 +516,7 @@ async function init() {
 }
 
 // ============================================================
-// GYRO HANDLER
+// GYRO HANDLER — ACCUMULATIVE Z
 // ============================================================
 function onOrientation(e) {
   if (e.alpha === null && e.beta === null && e.gamma === null) return;
@@ -527,7 +530,6 @@ function onOrientation(e) {
   rawBeta  = e.beta  || 0;
   rawGamma = e.gamma || 0;
 
-  if (alphaBaseline === null) alphaBaseline = rawAlpha;
   if (betaBaseline === null) betaBaseline = rawBeta;
 
   // X: gamma -90..90 → 0..1
@@ -538,18 +540,22 @@ function onOrientation(e) {
   deltaBeta = Math.max(-90, Math.min(90, deltaBeta));
   normY = Math.max(0, Math.min(1, (deltaBeta + 90) / 180));
 
-  // Z: alpha relative to baseline → 0..1
-  let dAlpha = rawAlpha - alphaBaseline;
-  if (dAlpha > 180) dAlpha -= 360;
-  if (dAlpha < -180) dAlpha += 360;
-  normZ = Math.max(0, Math.min(1, (dAlpha + 180) / 360));
+  // Z: ACCUMULATIVE — track frame-to-frame delta, no wrap
+  if (prevAlpha !== null) {
+    let delta = rawAlpha - prevAlpha;
+    // Handle the 360→0 and 0→360 wrap in the raw sensor value
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    accumulatedZ += delta;
+  }
+  prevAlpha = rawAlpha;
 
   // Y offset: looking up → camera up → cans slide down
   yOffset = (normY - 0.5) * 2 * ySensitivity;
 
-  // Z offset: INVERTED — turn right → cans go left (camera goes negative)
-  // normZ > 0.5 = turned right, so we negate to move camera left
-  zOffset = -(normZ - 0.5) * 2 * zSensitivity;
+  // Z offset: inverted, using accumulated degrees
+  // Divide by 90 to normalize (90° turn = 1 unit of sensitivity)
+  zOffset = -(accumulatedZ / 90) * zSensitivity;
 }
 
 // ============================================================
@@ -594,12 +600,15 @@ function gameLoop(timestamp) {
     }
   }
 
+  // Debug display
   document.getElementById('bar-x').style.width = (normX * 100) + '%';
   document.getElementById('bar-y').style.width = (normY * 100) + '%';
-  document.getElementById('bar-z').style.width = (normZ * 100) + '%';
+  // Z bar: show relative position, center = start, use modulo for bar display
+  const zBarNorm = Math.max(0, Math.min(1, 0.5 + (accumulatedZ / 360)));
+  document.getElementById('bar-z').style.width = (zBarNorm * 100) + '%';
   document.getElementById('val-x').textContent = normX.toFixed(3);
   document.getElementById('val-y').textContent = normY.toFixed(3);
-  document.getElementById('val-z').textContent = normZ.toFixed(3);
+  document.getElementById('val-z').textContent = accumulatedZ.toFixed(1) + '°';
 
   renderer.render(scene, cam);
 }
