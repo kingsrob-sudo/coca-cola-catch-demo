@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Coca-Cola Catch AR</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --coke-red: #F40009;
+    --coke-dark: #B8000A;
+    --coke-gold: #FFD700;
+    --coke-white: #FFFFFF;
+  }
+
+  body {
+    overflow: hidden;
+    touch-action: none;
+    background: #000;
+    font-family: 'Barlow Condensed', sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+  }
+
+  #camera-feed {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    z-index: 0;
+    transform: scaleX(1);
+  }
+
+  #game-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+  }
+
+  .overlay {
+    position: fixed;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  /* HUD */
+  #hud {
+    top: 0; left: 0; right: 0;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+  }
+
+  .hud-box {
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 14px;
+    padding: 8px 16px;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+
+  .hud-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.6);
+    font-weight: 600;
+  }
+
+  .hud-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    color: var(--coke-white);
+    line-height: 1;
+  }
+
+  #hud-timer .hud-value { color: var(--coke-gold); }
+
+  .hud-combo {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    color: var(--coke-gold);
+    text-shadow: 0 0 20px rgba(255,215,0,0.6);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .hud-combo.active { opacity: 1; }
+
+  /* Catch feedback */
+  .catch-flash {
+    position: fixed;
+    z-index: 5;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 48px;
+    color: var(--coke-gold);
+    text-shadow: 0 0 30px rgba(255,215,0,0.8);
+    pointer-events: none;
+    animation: floatUp 0.8s ease-out forwards;
+  }
+
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -80px) scale(1.5); }
+  }
+
+  /* Screens */
+  .screen {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    transition: opacity 0.5s;
+  }
+
+  .screen.hidden { opacity: 0; pointer-events: none; }
+
+  /* Start screen */
+  #start-screen {
+    background: linear-gradient(180deg, rgba(180,0,8,0.92) 0%, rgba(0,0,0,0.95) 100%);
+  }
+
+  .logo-container {
+    margin-bottom: 30px;
+    text-align: center;
+  }
+
+  .logo-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 64px;
+    color: var(--coke-white);
+    line-height: 0.9;
+    text-shadow: 0 4px 30px rgba(244,0,9,0.6);
+  }
+
+  .logo-sub {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px;
+    color: var(--coke-gold);
+    letter-spacing: 8px;
+    margin-top: 4px;
+  }
+
+  .game-desc {
+    color: rgba(255,255,255,0.7);
+    font-size: 16px;
+    text-align: center;
+    max-width: 280px;
+    margin-bottom: 40px;
+    line-height: 1.5;
+    font-weight: 400;
+  }
+
+  .btn {
+    pointer-events: all;
+    background: var(--coke-red);
+    color: white;
+    border: none;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 3px;
+    padding: 16px 50px;
+    border-radius: 50px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(244,0,9,0.5);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+
+  .btn:active {
+    transform: scale(0.96);
+    box-shadow: 0 4px 20px rgba(244,0,9,0.4);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    border: 2px solid rgba(255,255,255,0.3);
+    box-shadow: none;
+    font-size: 20px;
+    padding: 12px 36px;
+    margin-top: 12px;
+  }
+
+  /* End screen */
+  #end-screen {
+    background: linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(180,0,8,0.9) 100%);
+  }
+
+  .end-label {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  .end-score {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 96px;
+    color: var(--coke-white);
+    line-height: 1;
+    text-shadow: 0 0 60px rgba(244,0,9,0.6);
+  }
+
+  .end-stats {
+    display: flex;
+    gap: 30px;
+    margin: 24px 0 32px;
+  }
+
+  .end-stat {
+    text-align: center;
+  }
+
+  .end-stat-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    color: var(--coke-gold);
+  }
+
+  .end-stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.5);
+    font-weight: 600;
+  }
+
+  .promo-box {
+    background: rgba(255,215,0,0.1);
+    border: 1px solid rgba(255,215,0,0.3);
+    border-radius: 14px;
+    padding: 16px 28px;
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .promo-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: var(--coke-gold);
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+
+  .promo-code {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px;
+    color: var(--coke-white);
+    letter-spacing: 6px;
+  }
+
+  .share-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .share-btn {
+    pointer-events: all;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .share-btn:active { background: rgba(255,255,255,0.2); }
+
+  /* Catch zone indicator */
+  #catch-indicator {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    width: 100px;
+    height: 100px;
+    border: 3px solid rgba(255,255,255,0.4);
+    border-radius: 50%;
+    pointer-events: none;
+    box-shadow: 0 0 30px rgba(244,0,9,0.3), inset 0 0 30px rgba(244,0,9,0.1);
+    transition: transform 0.05s linear;
+  }
+
+  #catch-indicator::after {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border: 2px dashed rgba(255,255,255,0.2);
+    border-radius: 50%;
+  }
+
+  /* Permission screen */
+  .perm-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+  }
+
+  .perm-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    color: var(--coke-white);
+    margin-bottom: 12px;
+  }
+
+  .perm-desc {
+    color: rgba(255,255,255,0.6);
+    font-size: 15px;
+    text-align: center;
+    max-width: 260px;
+    margin-bottom: 30px;
+    line-height: 1.5;
+  }
+
+  /* Countdown */
+  #countdown {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.6);
+    pointer-events: none;
+  }
+
+  #countdown.hidden { display: none; }
+
+  #countdown-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 120px;
+    color: var(--coke-white);
+    text-shadow: 0 0 60px rgba(244,0,9,0.8);
+    animation: countPulse 0.8s ease-out;
+  }
+
+  @keyframes countPulse {
+    0% { transform: scale(2); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Mobile landscape warning */
+  @media (orientation: portrait) {
+    .landscape-only { display: none; }
+  }
+
+  /* No camera fallback background */
+  .no-camera-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: radial-gradient(ellipse at center, #1a0005 0%, #000 100%);
+  }
+
+  /* Particle burst on catch */
+  .particle {
+    position: fixed;
+    z-index: 4;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: particleBurst 0.6s ease-out forwards;
+  }
+
+  @keyframes particleBurst {
+    0% { opacity: 1; transform: translate(0,0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--px), var(--py)) scale(0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="no-camera-bg" id="fallback-bg"></div>
+<video id="camera-feed" autoplay playsinline muted></video>
+<canvas id="game-canvas"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="overlay" style="display:none;">
+  <div class="hud-box" id="hud-score">
+    <div class="hud-label">Score</div>
+    <div class="hud-value" id="score-val">0</div>
+  </div>
+  <div class="hud-box" id="hud-timer">
+    <div class="hud-label">Time</div>
+    <div class="hud-value" id="timer-val">60</div>
+  </div>
+</div>
+
+<div class="hud-combo" id="combo-display">COMBO x2</div>
+
+<div id="catch-indicator" style="display:none;"></div>
+
+<!-- Start Screen -->
+<div class="screen" id="start-screen">
+  <div class="logo-container">
+    <div class="logo-text">COCA-COLA</div>
+    <div class="logo-sub">C A T C H</div>
+  </div>
+  <div class="game-desc">
+    Tilt your phone to catch falling cans!<br>
+    Golden cans are worth bonus points.
+  </div>
+  <button class="btn" id="btn-start" onclick="requestPermissions()">START GAME</button>
+</div>
+
+<!-- Countdown -->
+<div id="countdown" class="hidden">
+  <div id="countdown-num">3</div>
+</div>
+
+<!-- End Screen -->
+<div class="screen hidden" id="end-screen">
+  <div class="end-label">Your Score</div>
+  <div class="end-score" id="final-score">0</div>
+  <div class="end-stats">
+    <div class="end-stat">
+      <div class="end-stat-val" id="final-cans">0</div>
+      <div class="end-stat-label">Cans Caught</div>
+    </div>
+    <div class="end-stat">
+      <div class="end-stat-val" id="final-combo">0</div>
+      <div class="end-stat-label">Best Combo</div>
+    </div>
+    <div class="end-stat">
+      <div class="end-stat-val" id="final-gold">0</div>
+      <div class="end-stat-label">Gold Cans</div>
+    </div>
+  </div>
+  <div class="promo-box">
+    <div class="promo-label">Your Promo Code</div>
+    <div class="promo-code" id="promo-code">COKE-XXXX</div>
+  </div>
+  <button class="btn" onclick="restartGame()">PLAY AGAIN</button>
+  <div class="share-row">
+    <button class="share-btn" onclick="shareScore('copy')">📋 Copy Score</button>
+    <button class="share-btn" onclick="shareScore('share')">📤 Share</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// GAME STATE
+// ============================================================
+const state = {
+  score: 0,
+  timeLeft: 60,
+  cans: [],
+  catcherX: 0.5,
+  catcherY: 0.85,
+  combo: 0,
+  bestCombo: 0,
+  totalCaught: 0,
+  goldCaught: 0,
+  isPlaying: false,
+  hasGyro: false,
+  gyroGamma: 0,
+  gyroBeta: 0,
+  touchX: 0.5,
+  canvasW: 0,
+  canvasH: 0,
+  spawnRate: 1200,
+  lastSpawn: 0,
+  difficulty: 1
+};
+
+// ============================================================
+// THREE.JS SETUP
+// ============================================================
+const canvas = document.getElementById('game-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = false;
+renderer.outputEncoding = THREE.sRGBEncoding;
+
+const scene = new THREE.Scene();
+
+const aspect = window.innerWidth / window.innerHeight;
+const frustumSize = 10;
+const camera = new THREE.OrthographicCamera(
+  -frustumSize * aspect / 2, frustumSize * aspect / 2,
+  frustumSize / 2, -frustumSize / 2, 0.1, 100
+);
+camera.position.z = 10;
+
+// Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+dirLight.position.set(3, 5, 8);
+scene.add(dirLight);
+
+const rimLight = new THREE.DirectionalLight(0xff4444, 0.3);
+rimLight.position.set(-3, 2, -4);
+scene.add(rimLight);
+
+// ============================================================
+// CAN GEOMETRY & MATERIALS
+// ============================================================
+function createCanGeometry() {
+  const group = new THREE.Group();
+
+  // Main body - cylinder
+  const bodyGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.85, 24, 1);
+  const bodyMat = new THREE.MeshPhongMaterial({
+    color: 0xD40009,
+    specular: 0xffffff,
+    shininess: 100,
+    emissive: 0x330000,
+    emissiveIntensity: 0.2
+  });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  group.add(body);
+
+  // Top rim
+  const rimGeo = new THREE.TorusGeometry(0.26, 0.03, 8, 24);
+  const rimMat = new THREE.MeshPhongMaterial({
+    color: 0xC0C0C0,
+    specular: 0xffffff,
+    shininess: 200
+  });
+  const topRim = new THREE.Mesh(rimGeo, rimMat);
+  topRim.position.y = 0.425;
+  topRim.rotation.x = Math.PI / 2;
+  group.add(topRim);
+
+  // Top cap
+  const capGeo = new THREE.CircleGeometry(0.26, 24);
+  const capMat = new THREE.MeshPhongMaterial({
+    color: 0xB0B0B0,
+    specular: 0xffffff,
+    shininess: 150
+  });
+  const cap = new THREE.Mesh(capGeo, capMat);
+  cap.position.y = 0.43;
+  cap.rotation.x = -Math.PI / 2;
+  group.add(cap);
+
+  // Bottom rim
+  const bottomRim = new THREE.Mesh(rimGeo, rimMat);
+  bottomRim.position.y = -0.425;
+  bottomRim.rotation.x = Math.PI / 2;
+  group.add(bottomRim);
+
+  // White stripe / label band
+  const stripeGeo = new THREE.CylinderGeometry(0.285, 0.285, 0.15, 24, 1);
+  const stripeMat = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    specular: 0xffffff,
+    shininess: 60
+  });
+  const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+  stripe.position.y = 0.05;
+  group.add(stripe);
+
+  return group;
+}
+
+function createGoldCanGeometry() {
+  const group = new THREE.Group();
+
+  const bodyGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.9, 24, 1);
+  const bodyMat = new THREE.MeshPhongMaterial({
+    color: 0xFFD700,
+    specular: 0xffffff,
+    shininess: 200,
+    emissive: 0x665500,
+    emissiveIntensity: 0.4
+  });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  group.add(body);
+
+  const rimGeo = new THREE.TorusGeometry(0.28, 0.035, 8, 24);
+  const rimMat = new THREE.MeshPhongMaterial({
+    color: 0xFFF0A0,
+    specular: 0xffffff,
+    shininess: 250
+  });
+  const topRim = new THREE.Mesh(rimGeo, rimMat);
+  topRim.position.y = 0.45;
+  topRim.rotation.x = Math.PI / 2;
+  group.add(topRim);
+
+  const capGeo = new THREE.CircleGeometry(0.28, 24);
+  const cap = new THREE.Mesh(capGeo, rimMat);
+  cap.position.y = 0.46;
+  cap.rotation.x = -Math.PI / 2;
+  group.add(cap);
+
+  const bottomRim = new THREE.Mesh(rimGeo, rimMat);
+  bottomRim.position.y = -0.45;
+  bottomRim.rotation.x = Math.PI / 2;
+  group.add(bottomRim);
+
+  // Star emblem
+  const starShape = new THREE.Shape();
+  const spikes = 5, outerR = 0.12, innerR = 0.05;
+  for (let i = 0; i < spikes * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = (i * Math.PI) / spikes - Math.PI / 2;
+    const x = Math.cos(angle) * r;
+    const y = Math.sin(angle) * r;
+    i === 0 ? starShape.moveTo(x, y) : starShape.lineTo(x, y);
+  }
+  starShape.closePath();
+  const starGeo = new THREE.ShapeGeometry(starShape);
+  const starMat = new THREE.MeshPhongMaterial({
+    color: 0xFFFFFF,
+    emissive: 0xFFFF00,
+    emissiveIntensity: 0.3,
+    side: THREE.DoubleSide
+  });
+  const star = new THREE.Mesh(starGeo, starMat);
+  star.position.set(0, 0, 0.305);
+  group.add(star);
+
+  return group;
+}
+
+// ============================================================
+// CAN SPAWNING
+// ============================================================
+function spawnCan() {
+  const isGold = Math.random() < 0.12;
+  const canMesh = isGold ? createGoldCanGeometry() : createCanGeometry();
+
+  const xRange = (frustumSize * aspect) - 1;
+  canMesh.position.x = (Math.random() - 0.5) * xRange;
+  canMesh.position.y = frustumSize / 2 + 1;
+  canMesh.position.z = 0;
+
+  // Random initial rotation
+  canMesh.rotation.x = Math.random() * Math.PI;
+  canMesh.rotation.z = Math.random() * 0.5 - 0.25;
+
+  scene.add(canMesh);
+
+  state.cans.push({
+    mesh: canMesh,
+    isGold,
+    speed: (1.5 + Math.random() * 1.5) * state.difficulty,
+    rotSpeedX: (Math.random() - 0.5) * 3,
+    rotSpeedZ: (Math.random() - 0.5) * 2,
+    wobble: Math.random() * Math.PI * 2,
+    wobbleSpeed: 1 + Math.random() * 2,
+    caught: false
+  });
+}
+
+// ============================================================
+// CAMERA ACCESS
+// ============================================================
+async function initCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    const video = document.getElementById('camera-feed');
+    video.srcObject = stream;
+    document.getElementById('fallback-bg').style.display = 'none';
+    return true;
+  } catch (e) {
+    console.log('Camera not available, using fallback background');
+    return false;
+  }
+}
+
+// ============================================================
+// GYROSCOPE / TOUCH CONTROLS
+// ============================================================
+function initGyro() {
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+
+    DeviceOrientationEvent.requestPermission().then(response => {
+      if (response === 'granted') {
+        state.hasGyro = true;
+        window.addEventListener('deviceorientation', handleOrientation);
+      }
+    }).catch(() => {
+      console.log('Gyro permission denied, using touch');
+    });
+  } else if ('DeviceOrientationEvent' in window) {
+    // Android / older iOS
+    state.hasGyro = true;
+    window.addEventListener('deviceorientation', handleOrientation);
+    // Test if it actually fires
+    setTimeout(() => {
+      if (state.gyroGamma === 0 && state.gyroBeta === 0) {
+        state.hasGyro = false;
+      }
+    }, 1000);
+  }
+}
+
+function handleOrientation(e) {
+  if (e.gamma !== null) state.gyroGamma = e.gamma;
+  if (e.beta !== null) state.gyroBeta = e.beta;
+  state.hasGyro = true;
+}
+
+// Touch fallback
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  state.touchX = touch.clientX / window.innerWidth;
+}, { passive: false });
+
+canvas.addEventListener('touchstart', (e) => {
+  const touch = e.touches[0];
+  state.touchX = touch.clientX / window.innerWidth;
+}, { passive: true });
+
+// Mouse fallback (desktop testing)
+canvas.addEventListener('mousemove', (e) => {
+  if (!state.hasGyro) {
+    state.touchX = e.clientX / window.innerWidth;
+  }
+});
+
+// ============================================================
+// GAME FLOW
+// ============================================================
+async function requestPermissions() {
+  document.getElementById('start-screen').classList.add('hidden');
+  await initCamera();
+  initGyro();
+  startCountdown();
+}
+
+function startCountdown() {
+  const countEl = document.getElementById('countdown');
+  const numEl = document.getElementById('countdown-num');
+  countEl.classList.remove('hidden');
+
+  let count = 3;
+  numEl.textContent = count;
+  numEl.style.animation = 'none';
+  void numEl.offsetWidth;
+  numEl.style.animation = 'countPulse 0.8s ease-out';
+
+  const interval = setInterval(() => {
+    count--;
+    if (count > 0) {
+      numEl.textContent = count;
+      numEl.style.animation = 'none';
+      void numEl.offsetWidth;
+      numEl.style.animation = 'countPulse 0.8s ease-out';
+    } else {
+      numEl.textContent = 'GO!';
+      numEl.style.animation = 'none';
+      void numEl.offsetWidth;
+      numEl.style.animation = 'countPulse 0.8s ease-out';
+      setTimeout(() => {
+        countEl.classList.add('hidden');
+        startGame();
+      }, 600);
+      clearInterval(interval);
+    }
+  }, 900);
+}
+
+function startGame() {
+  state.score = 0;
+  state.timeLeft = 60;
+  state.combo = 0;
+  state.bestCombo = 0;
+  state.totalCaught = 0;
+  state.goldCaught = 0;
+  state.isPlaying = true;
+  state.difficulty = 1;
+  state.spawnRate = 1200;
+  state.lastSpawn = 0;
+
+  // Clear existing cans
+  state.cans.forEach(c => scene.remove(c.mesh));
+  state.cans = [];
+
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('catch-indicator').style.display = 'block';
+  document.getElementById('score-val').textContent = '0';
+  document.getElementById('timer-val').textContent = '60';
+
+  // Timer
+  state.timerInterval = setInterval(() => {
+    state.timeLeft--;
+    document.getElementById('timer-val').textContent = state.timeLeft;
+
+    // Increase difficulty over time
+    if (state.timeLeft <= 40) state.difficulty = 1.2;
+    if (state.timeLeft <= 25) state.difficulty = 1.5;
+    if (state.timeLeft <= 10) state.difficulty = 1.8;
+
+    state.spawnRate = Math.max(400, 1200 - (60 - state.timeLeft) * 15);
+
+    if (state.timeLeft <= 0) {
+      endGame();
+    }
+  }, 1000);
+}
+
+function endGame() {
+  state.isPlaying = false;
+  clearInterval(state.timerInterval);
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('catch-indicator').style.display = 'none';
+
+  // Generate promo code
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'COKE-';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+
+  document.getElementById('final-score').textContent = state.score;
+  document.getElementById('final-cans').textContent = state.totalCaught;
+  document.getElementById('final-combo').textContent = 'x' + state.bestCombo;
+  document.getElementById('final-gold').textContent = state.goldCaught;
+  document.getElementById('promo-code').textContent = code;
+
+  // Clean up cans
+  state.cans.forEach(c => scene.remove(c.mesh));
+  state.cans = [];
+
+  setTimeout(() => {
+    document.getElementById('end-screen').classList.remove('hidden');
+  }, 500);
+}
+
+function restartGame() {
+  document.getElementById('end-screen').classList.add('hidden');
+  startCountdown();
+}
+
+// ============================================================
+// CATCH DETECTION & EFFECTS
+// ============================================================
+function checkCatch(can) {
+  const catchRange = frustumSize * aspect;
+  const screenX = (can.mesh.position.x + catchRange / 2) / catchRange;
+  const screenY = (can.mesh.position.y + frustumSize / 2) / frustumSize;
+
+  const dx = screenX - state.catcherX;
+  const dy = screenY - (1 - state.catcherY);
+
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist < 0.12) {
+    return true;
+  }
+  return false;
+}
+
+function onCatch(can) {
+  can.caught = true;
+  state.combo++;
+  state.totalCaught++;
+  if (can.isGold) state.goldCaught++;
+  if (state.combo > state.bestCombo) state.bestCombo = state.combo;
+
+  const basePoints = can.isGold ? 50 : 10;
+  const comboMultiplier = Math.min(state.combo, 10);
+  const points = basePoints * comboMultiplier;
+  state.score += points;
+
+  document.getElementById('score-val').textContent = state.score;
+
+  // Combo display
+  if (state.combo >= 2) {
+    const comboEl = document.getElementById('combo-display');
+    comboEl.textContent = `COMBO x${state.combo}!`;
+    comboEl.classList.add('active');
+    clearTimeout(state.comboTimeout);
+    state.comboTimeout = setTimeout(() => comboEl.classList.remove('active'), 1500);
+  }
+
+  // Float-up score text
+  const floater = document.createElement('div');
+  floater.className = 'catch-flash';
+  floater.textContent = `+${points}`;
+  if (can.isGold) floater.style.color = '#FFD700';
+
+  const sx = ((can.mesh.position.x / (frustumSize * aspect / 2)) + 1) / 2 * window.innerWidth;
+  const sy = ((can.mesh.position.y / (frustumSize / 2)) * -1 + 1) / 2 * window.innerHeight;
+  floater.style.left = sx + 'px';
+  floater.style.top = sy + 'px';
+  document.body.appendChild(floater);
+  setTimeout(() => floater.remove(), 800);
+
+  // Particle burst
+  spawnParticles(sx, sy, can.isGold ? '#FFD700' : '#F40009');
+
+  // Shrink and remove
+  const shrinkStart = performance.now();
+  const mesh = can.mesh;
+  function shrink(t) {
+    const elapsed = t - shrinkStart;
+    const s = Math.max(0, 1 - elapsed / 200);
+    mesh.scale.set(s, s, s);
+    if (s > 0) requestAnimationFrame(shrink);
+    else scene.remove(mesh);
+  }
+  requestAnimationFrame(shrink);
+}
+
+function spawnParticles(x, y, color) {
+  for (let i = 0; i < 8; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = x + 'px';
+    p.style.top = y + 'px';
+    p.style.background = color;
+    const angle = (i / 8) * Math.PI * 2;
+    const dist = 40 + Math.random() * 40;
+    p.style.setProperty('--px', Math.cos(angle) * dist + 'px');
+    p.style.setProperty('--py', Math.sin(angle) * dist + 'px');
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 600);
+  }
+}
+
+// ============================================================
+// UPDATE CATCHER POSITION
+// ============================================================
+function updateCatcher() {
+  if (state.hasGyro) {
+    // Map gamma (-45 to 45) to 0-1
+    const normalized = Math.max(0, Math.min(1, (state.gyroGamma + 45) / 90));
+    state.catcherX += (normalized - state.catcherX) * 0.15;
+  } else {
+    state.catcherX += (state.touchX - state.catcherX) * 0.15;
+  }
+
+  state.catcherX = Math.max(0.05, Math.min(0.95, state.catcherX));
+
+  const indicator = document.getElementById('catch-indicator');
+  const screenX = state.catcherX * window.innerWidth;
+  indicator.style.left = screenX + 'px';
+}
+
+// ============================================================
+// MAIN GAME LOOP
+// ============================================================
+let lastTime = 0;
+
+function gameLoop(timestamp) {
+  requestAnimationFrame(gameLoop);
+
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+
+  if (!state.isPlaying) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  updateCatcher();
+
+  // Spawn cans
+  if (timestamp - state.lastSpawn > state.spawnRate) {
+    spawnCan();
+    state.lastSpawn = timestamp;
+    // Occasionally spawn 2 at once at higher difficulty
+    if (state.difficulty > 1.3 && Math.random() < 0.3) {
+      setTimeout(spawnCan, 100);
+    }
+  }
+
+  // Update cans
+  for (let i = state.cans.length - 1; i >= 0; i--) {
+    const can = state.cans[i];
+    if (can.caught) continue;
+
+    can.mesh.position.y -= can.speed * dt;
+    can.mesh.rotation.x += can.rotSpeedX * dt;
+    can.mesh.rotation.z += can.rotSpeedZ * dt;
+
+    // Wobble
+    can.wobble += can.wobbleSpeed * dt;
+    can.mesh.position.x += Math.sin(can.wobble) * 0.3 * dt;
+
+    // Gold cans glow pulse
+    if (can.isGold) {
+      const pulse = Math.sin(timestamp * 0.005) * 0.15 + 0.4;
+      can.mesh.children[0].material.emissiveIntensity = pulse;
+    }
+
+    // Check catch
+    if (can.mesh.position.y < -frustumSize / 2 + 2.5 && can.mesh.position.y > -frustumSize / 2 + 0.5) {
+      if (checkCatch(can)) {
+        onCatch(can);
+        continue;
+      }
+    }
+
+    // Off screen - miss
+    if (can.mesh.position.y < -frustumSize / 2 - 2) {
+      scene.remove(can.mesh);
+      state.cans.splice(i, 1);
+      state.combo = 0; // Reset combo on miss
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+requestAnimationFrame(gameLoop);
+
+// ============================================================
+// RESIZE
+// ============================================================
+window.addEventListener('resize', () => {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const newAspect = w / h;
+
+  camera.left = -frustumSize * newAspect / 2;
+  camera.right = frustumSize * newAspect / 2;
+  camera.top = frustumSize / 2;
+  camera.bottom = -frustumSize / 2;
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(w, h);
+});
+
+// ============================================================
+// SHARE
+// ============================================================
+function shareScore(method) {
+  const text = `🥤 I scored ${state.score} points in Coca-Cola Catch!\n🥇 ${state.totalCaught} cans caught | Best combo: x${state.bestCombo}\n\nCan you beat my score? Play now!`;
+
+  if (method === 'share' && navigator.share) {
+    navigator.share({
+      title: 'Coca-Cola Catch',
+      text: text
+    }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = event.target;
+      const orig = btn.textContent;
+      btn.textContent = '✓ Copied!';
+      setTimeout(() => btn.textContent = orig, 2000);
+    }).catch(() => {});
+  }
+}
+</script>
+</body>
+</html>
