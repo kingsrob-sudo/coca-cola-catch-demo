@@ -62,19 +62,19 @@
 
 <div id="score-hud"><div class="score-label">Score</div><div class="score-value" id="score-val">0</div></div>
 <div id="start-screen">
-  <div class="start-version">v3.0.0</div>
-  <div class="start-label">Dev Build — X for L/R</div>
+  <div class="start-version">v3.0.1</div>
+  <div class="start-label">Dev Build — X Accumulative</div>
   <button id="start-btn" onclick="init()">TAP TO START</button>
 </div>
 <button id="sensor-toggle" onclick="toggleSensors()">[sensors]</button>
 <div id="sensor-panel" class="collapsed">
   <div class="debug-title">Gyro</div>
-  <div class="debug-row"><div class="debug-label x-axis">X</div><div class="debug-bar-track"><div class="debug-bar-fill x-axis" id="bar-x"></div></div><div class="debug-val" id="val-x">0.000</div></div>
+  <div class="debug-row"><div class="debug-label x-axis">X</div><div class="debug-bar-track"><div class="debug-bar-fill x-axis" id="bar-x"></div></div><div class="debug-val" id="val-x">0.0°</div></div>
   <div class="debug-row"><div class="debug-label y-axis">Y</div><div class="debug-bar-track"><div class="debug-bar-fill y-axis" id="bar-y"></div></div><div class="debug-val" id="val-y">0.000</div></div>
   <div class="debug-row"><div class="debug-label z-axis">Z</div><div class="debug-bar-track"><div class="debug-bar-fill z-axis" id="bar-z"></div></div><div class="debug-val" id="val-z">0.0°</div></div>
   <div class="section-gap"></div>
   <div class="debug-title">Sensitivity</div>
-  <div class="slider-row"><div class="slider-label x-sens">X Sens</div><input type="range" id="x-sens-slider" min="1" max="50" value="24" step="1"><div class="slider-val" id="x-sens-val">24</div></div>
+  <div class="slider-row"><div class="slider-label x-sens">X Sens</div><input type="range" id="x-sens-slider" min="1" max="50" value="5" step="1"><div class="slider-val" id="x-sens-val">5</div></div>
   <div class="slider-row"><div class="slider-label y-sens">Y Sens</div><input type="range" id="y-sens-slider" min="1" max="50" value="24" step="1"><div class="slider-val" id="y-sens-val">24</div></div>
 </div>
 <script>
@@ -83,15 +83,19 @@ const CAN_TEXTURE_URI = 'data:image/jpeg;base64,/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAK
 // ============================================================
 // STATE
 // ============================================================
-let gyroActive=false, betaBaseline=null, gammaBaseline=null;
+let gyroActive=false, betaBaseline=null;
 let rawAlpha=0, rawBeta=0, rawGamma=0;
-let normX=0.5, normY=0.5, normZ=0.5;
+let normY=0.5;
+
+// Accumulative tracking — frame-to-frame deltas, no wrapping
+let prevGamma=null, accumulatedX=0;
 let prevAlpha=null, accumulatedZ=0;
+
 let yOffset=0, xOffset=0, smoothYOffset=0, smoothXOffset=0;
-let xSensitivity=24, ySensitivity=24;
+let xSensitivity=5, ySensitivity=24;
 let score=0, sensorPanelOpen=false;
 
-function toggleSensors() {
+function toggleSensors(){
   const p=document.getElementById('sensor-panel');
   sensorPanelOpen=!sensorPanelOpen;
   p.style.display=sensorPanelOpen?'block':'none';
@@ -138,46 +142,27 @@ function loadTexture(){
 // CAN — TAPERED
 // ============================================================
 function createCanGeometry(){
-  const bodyR=0.28, topR=0.24, bottomR=0.25, h=0.95, taperH=0.08, lipH=0.02;
-  const points=[
-    new THREE.Vector2(bottomR,0),
-    new THREE.Vector2(bottomR,lipH),
-    new THREE.Vector2(bodyR,lipH+taperH),
-    new THREE.Vector2(bodyR,h-lipH-taperH),
-    new THREE.Vector2(topR,h-lipH),
-    new THREE.Vector2(topR,h)
-  ];
+  const bodyR=0.28,topR=0.24,bottomR=0.25,h=0.95,taperH=0.08,lipH=0.02;
+  const points=[new THREE.Vector2(bottomR,0),new THREE.Vector2(bottomR,lipH),new THREE.Vector2(bodyR,lipH+taperH),new THREE.Vector2(bodyR,h-lipH-taperH),new THREE.Vector2(topR,h-lipH),new THREE.Vector2(topR,h)];
   const geo=new THREE.LatheGeometry(points,32);
-  geo.translate(0,-h/2,0);
-  return geo;
+  geo.translate(0,-h/2,0); return geo;
 }
 
 function createCan(isGold){
   const group=new THREE.Group();
-  const h=0.95, topR=0.24, bottomR=0.25;
+  const h=0.95,topR=0.24,bottomR=0.25;
   const bodyGeo=createCanGeometry();
   let bodyMat;
-  if(isGold){ bodyMat=new THREE.MeshPhongMaterial({color:0xFFD700,specular:0xffffff,shininess:200,emissive:0x665500,emissiveIntensity:0.4}); }
-  else{ bodyMat=new THREE.MeshPhongMaterial({map:canTexture,specular:0x666666,shininess:120}); }
+  if(isGold){bodyMat=new THREE.MeshPhongMaterial({color:0xFFD700,specular:0xffffff,shininess:200,emissive:0x665500,emissiveIntensity:0.4});}
+  else{bodyMat=new THREE.MeshPhongMaterial({map:canTexture,specular:0x666666,shininess:120});}
   group.add(new THREE.Mesh(bodyGeo,bodyMat));
-
   const silverMat=new THREE.MeshPhongMaterial({color:0xC8C8C8,specular:0xffffff,shininess:250,emissive:0x222222,emissiveIntensity:0.1});
   const topCap=new THREE.Mesh(new THREE.CircleGeometry(topR,32),silverMat);
-  topCap.position.y=h/2; topCap.rotation.x=-Math.PI/2; group.add(topCap);
+  topCap.position.y=h/2;topCap.rotation.x=-Math.PI/2;group.add(topCap);
   const bottomCap=new THREE.Mesh(new THREE.CircleGeometry(bottomR,32),silverMat);
-  bottomCap.position.y=-h/2; bottomCap.rotation.x=Math.PI/2; group.add(bottomCap);
-
-  if(!isGold){
-    const tab=new THREE.Mesh(new THREE.RingGeometry(0.025,0.06,8),new THREE.MeshPhongMaterial({color:0xA0A0A0,specular:0xffffff,shininess:200,side:THREE.DoubleSide}));
-    tab.position.set(0.04,h/2+0.005,0); tab.rotation.x=-Math.PI/2; group.add(tab);
-  }
-  if(isGold){
-    const star=new THREE.Shape();
-    for(let i=0;i<10;i++){const sr=i%2===0?0.12:0.05,a=(i*Math.PI)/5-Math.PI/2; i===0?star.moveTo(Math.cos(a)*sr,Math.sin(a)*sr):star.lineTo(Math.cos(a)*sr,Math.sin(a)*sr);}
-    star.closePath();
-    const sm=new THREE.Mesh(new THREE.ShapeGeometry(star),new THREE.MeshPhongMaterial({color:0xffffff,emissive:0xFFFF00,emissiveIntensity:0.3,side:THREE.DoubleSide}));
-    sm.position.set(0,0,0.29); group.add(sm);
-  }
+  bottomCap.position.y=-h/2;bottomCap.rotation.x=Math.PI/2;group.add(bottomCap);
+  if(!isGold){const tab=new THREE.Mesh(new THREE.RingGeometry(0.025,0.06,8),new THREE.MeshPhongMaterial({color:0xA0A0A0,specular:0xffffff,shininess:200,side:THREE.DoubleSide}));tab.position.set(0.04,h/2+0.005,0);tab.rotation.x=-Math.PI/2;group.add(tab);}
+  if(isGold){const star=new THREE.Shape();for(let i=0;i<10;i++){const sr=i%2===0?0.12:0.05,a=(i*Math.PI)/5-Math.PI/2;i===0?star.moveTo(Math.cos(a)*sr,Math.sin(a)*sr):star.lineTo(Math.cos(a)*sr,Math.sin(a)*sr);}star.closePath();const sm=new THREE.Mesh(new THREE.ShapeGeometry(star),new THREE.MeshPhongMaterial({color:0xffffff,emissive:0xFFFF00,emissiveIntensity:0.3,side:THREE.DoubleSide}));sm.position.set(0,0,0.29);group.add(sm);}
   return group;
 }
 
@@ -186,7 +171,7 @@ function createCan(isGold){
 // ============================================================
 const cans=[]; let lastSpawn=0;
 const SPAWN_INTERVAL=1200;
-const BUCKET_CENTER_X_RATIO=0.5, BUCKET_TOP_Y_RATIO=0.78, BUCKET_CATCH_WIDTH=200, BUCKET_CATCH_HEIGHT=40;
+const BUCKET_CENTER_X_RATIO=0.5,BUCKET_TOP_Y_RATIO=0.78,BUCKET_CATCH_WIDTH=200,BUCKET_CATCH_HEIGHT=40;
 
 function spawnCan(){
   const isGold=Math.random()<0.12;
@@ -194,7 +179,7 @@ function spawnCan(){
   const spawnWidth=viewW+xSensitivity*2;
   const x=smoothXOffset+(Math.random()-0.5)*spawnWidth;
   mesh.position.set(x,smoothYOffset+viewH/2+1.5,0);
-  mesh.rotation.x=Math.random()*Math.PI; mesh.rotation.z=Math.random()*0.5-0.25;
+  mesh.rotation.x=Math.random()*Math.PI;mesh.rotation.z=Math.random()*0.5-0.25;
   scene.add(mesh);
   cans.push({mesh,isGold,speed:2+Math.random()*2,rotSpeedX:(Math.random()-0.5)*3,rotSpeedZ:(Math.random()-0.5)*2,wobble:Math.random()*Math.PI*2,wobbleSpeed:1+Math.random()*2,caught:false});
 }
@@ -206,26 +191,15 @@ function worldToScreen(wp){const v=wp.clone().project(cam);return{x:(v.x*0.5+0.5
 function checkBucketCatch(c){const sp=worldToScreen(c.mesh.position);const bx=window.innerWidth*BUCKET_CENTER_X_RATIO,by=window.innerHeight*BUCKET_TOP_Y_RATIO;return Math.abs(sp.x-bx)<BUCKET_CATCH_WIDTH/2&&(sp.y-by)>0&&(sp.y-by)<BUCKET_CATCH_HEIGHT;}
 
 function onCatch(can){
-  can.caught=true;
-  const pts=can.isGold?50:10; score+=pts;
+  can.caught=true;const pts=can.isGold?50:10;score+=pts;
   document.getElementById('score-val').textContent=score;
   const sp=worldToScreen(can.mesh.position);
-
-  const f=document.createElement('div');f.className='catch-flash';f.textContent='+'+pts;
-  if(can.isGold)f.style.color='#FFD700';
-  f.style.left=sp.x+'px';f.style.top=sp.y+'px';
-  document.body.appendChild(f);setTimeout(()=>f.remove(),900);
-
-  const ring=document.createElement('div');ring.className='splash-ring';ring.style.left=sp.x+'px';ring.style.top=sp.y+'px';
-  document.body.appendChild(ring);setTimeout(()=>ring.remove(),500);
-
+  const f=document.createElement('div');f.className='catch-flash';f.textContent='+'+pts;if(can.isGold)f.style.color='#FFD700';f.style.left=sp.x+'px';f.style.top=sp.y+'px';document.body.appendChild(f);setTimeout(()=>f.remove(),900);
+  const ring=document.createElement('div');ring.className='splash-ring';ring.style.left=sp.x+'px';ring.style.top=sp.y+'px';document.body.appendChild(ring);setTimeout(()=>ring.remove(),500);
   const colors=can.isGold?['#FFD700','#FFF0A0','#FFAA00']:['#F40009','#ff4444','#ffffff'];
   for(let i=0;i<12;i++){const p=document.createElement('div');p.className='particle';const sz=4+Math.random()*6;p.style.width=sz+'px';p.style.height=sz+'px';p.style.left=sp.x+'px';p.style.top=sp.y+'px';p.style.background=colors[Math.floor(Math.random()*colors.length)];const angle=(i/12)*Math.PI*2+Math.random()*0.5,dist=50+Math.random()*60;p.style.setProperty('--px',Math.cos(angle)*dist+'px');p.style.setProperty('--py',Math.sin(angle)*dist+'px');document.body.appendChild(p);setTimeout(()=>p.remove(),700);}
-
-  document.body.classList.remove('shaking');void document.body.offsetWidth;
-  document.body.classList.add('shaking');setTimeout(()=>document.body.classList.remove('shaking'),400);
+  document.body.classList.remove('shaking');void document.body.offsetWidth;document.body.classList.add('shaking');setTimeout(()=>document.body.classList.remove('shaking'),400);
   if(navigator.vibrate)navigator.vibrate(80);
-
   const start=performance.now(),m=can.mesh;
   (function shrink(t){const s=Math.max(0,1-(t-start)/250);m.scale.set(s,s,s);s>0?requestAnimationFrame(shrink):scene.remove(m);})(start);
 }
@@ -246,11 +220,8 @@ async function init(){
   const needsPerm=typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function';
   if(needsPerm){try{const r=await DeviceOrientationEvent.requestPermission();if(r==='granted')window.addEventListener('deviceorientation',onOrientation);}catch(e){}}
   else if('DeviceOrientationEvent' in window){window.addEventListener('deviceorientation',onOrientation);}
-
   try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});document.getElementById('camera-feed').srcObject=stream;document.getElementById('fallback-bg').style.display='none';}catch(e){}
-
   await loadTexture();
-
   document.getElementById('start-screen').classList.add('hidden');
   document.getElementById('bucket-img').style.display='block';
   document.getElementById('score-hud').style.display='block';
@@ -259,34 +230,34 @@ async function init(){
 }
 
 // ============================================================
-// GYRO — X (gamma) drives L/R, Y (beta) drives U/D
+// GYRO — X ACCUMULATIVE (same approach as Z was)
 // ============================================================
 function onOrientation(e){
   if(e.alpha===null&&e.beta===null&&e.gamma===null)return;
   gyroActive=true;
   rawAlpha=e.alpha||0; rawBeta=e.beta||0; rawGamma=e.gamma||0;
   if(betaBaseline===null) betaBaseline=rawBeta;
-  if(gammaBaseline===null) gammaBaseline=rawGamma;
 
-  // X: gamma relative to baseline, for left/right
-  // gamma range is -90..90, delta from baseline
-  let deltaGamma=rawGamma-gammaBaseline;
-  deltaGamma=Math.max(-45,Math.min(45,deltaGamma)); // clamp to reasonable tilt
-  normX=Math.max(0,Math.min(1,(deltaGamma+45)/90));
+  // X: accumulate gamma deltas frame-to-frame — no wrapping
+  if(prevGamma!==null){
+    let dg=rawGamma-prevGamma;
+    // gamma range is -90..90, so a jump >90 means wrap
+    if(dg>90) dg-=180;
+    if(dg<-90) dg+=180;
+    accumulatedX+=dg;
+  }
+  prevGamma=rawGamma;
 
-  // Y: beta relative to baseline, for up/down
+  // Y: beta relative to baseline (unchanged)
   let deltaBeta=Math.max(-90,Math.min(90,rawBeta-betaBaseline));
   normY=Math.max(0,Math.min(1,(deltaBeta+90)/180));
 
-  // Z: still track accumulated alpha for debug display
+  // Z: still track for debug
   if(prevAlpha!==null){let d=rawAlpha-prevAlpha;if(d>180)d-=360;if(d<-180)d+=360;accumulatedZ+=d;}
   prevAlpha=rawAlpha;
-  normZ=Math.max(0,Math.min(1,0.5+(accumulatedZ/360)));
 
   // Camera offsets
-  // X: tilt right (normX > 0.5) → cans go left → camera goes positive
-  xOffset=(normX-0.5)*2*xSensitivity;
-  // Y: look up (normY > 0.5) → cans slide down → camera goes up
+  xOffset=(accumulatedX/90)*xSensitivity;
   yOffset=(normY-0.5)*2*ySensitivity;
 }
 
@@ -304,11 +275,9 @@ function gameLoop(timestamp){
   if(timestamp-lastSpawn>SPAWN_INTERVAL){spawnCan();lastSpawn=timestamp;}
 
   for(let i=cans.length-1;i>=0;i--){
-    const c=cans[i];
-    if(c.caught)continue;
-    c.mesh.position.y-=c.speed*dt;
-    c.mesh.rotation.x+=c.rotSpeedX*dt; c.mesh.rotation.z+=c.rotSpeedZ*dt;
-    c.wobble+=c.wobbleSpeed*dt; c.mesh.position.x+=Math.sin(c.wobble)*0.2*dt;
+    const c=cans[i];if(c.caught)continue;
+    c.mesh.position.y-=c.speed*dt;c.mesh.rotation.x+=c.rotSpeedX*dt;c.mesh.rotation.z+=c.rotSpeedZ*dt;
+    c.wobble+=c.wobbleSpeed*dt;c.mesh.position.x+=Math.sin(c.wobble)*0.2*dt;
     if(c.isGold)c.mesh.children[0].material.emissiveIntensity=Math.sin(timestamp*0.005)*0.15+0.4;
     if(checkBucketCatch(c)){onCatch(c);continue;}
     const relY=c.mesh.position.y-smoothYOffset,relX=c.mesh.position.x-smoothXOffset;
@@ -316,10 +285,12 @@ function gameLoop(timestamp){
   }
 
   if(sensorPanelOpen){
-    document.getElementById('bar-x').style.width=(normX*100)+'%';
+    const xBar=Math.max(0,Math.min(1,0.5+(accumulatedX/180)));
+    document.getElementById('bar-x').style.width=(xBar*100)+'%';
     document.getElementById('bar-y').style.width=(normY*100)+'%';
-    document.getElementById('bar-z').style.width=(normZ*100)+'%';
-    document.getElementById('val-x').textContent=normX.toFixed(3);
+    const zBar=Math.max(0,Math.min(1,0.5+(accumulatedZ/360)));
+    document.getElementById('bar-z').style.width=(zBar*100)+'%';
+    document.getElementById('val-x').textContent=accumulatedX.toFixed(1)+'°';
     document.getElementById('val-y').textContent=normY.toFixed(3);
     document.getElementById('val-z').textContent=accumulatedZ.toFixed(1)+'°';
   }
