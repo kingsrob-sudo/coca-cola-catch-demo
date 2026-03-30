@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Coca-Cola Catch — Gyro Debug</title>
+<title>Coca-Cola Catch — Dev Build</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap');
 
@@ -27,6 +28,13 @@
     width: 100%; height: 100%;
     object-fit: cover;
     z-index: 0;
+  }
+
+  #game-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
   }
 
   .no-camera-bg {
@@ -81,9 +89,10 @@
 
   #start-btn:active { transform: scale(0.96); }
 
-  /* Debug panels — stacked vertically for mobile */
-  .debug-panel {
+  /* Gyro debug — bottom of screen */
+  #debug-hud {
     position: fixed;
+    bottom: 30px;
     left: 12px;
     right: 12px;
     z-index: 10;
@@ -95,9 +104,6 @@
     padding: 14px 16px;
     display: none;
   }
-
-  #debug-hud { top: 50px; }
-  #debug-raw { top: 230px; }
 
   .debug-title {
     font-size: 10px;
@@ -160,69 +166,47 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Raw values — single column list */
-  .raw-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 6px;
-    font-size: 13px;
-  }
-
-  .raw-row:last-child { margin-bottom: 0; }
-
-  .raw-label { color: rgba(255,255,255,0.4); }
-  .raw-val { color: rgba(255,255,255,0.7); font-variant-numeric: tabular-nums; }
-
-  /* Status */
+  /* Gyro status */
   #gyro-status {
     position: fixed;
-    bottom: 30px;
+    bottom: 10px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 10;
-    font-size: 13px;
-    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
     text-align: center;
     display: none;
   }
 
   .status-dot {
     display: inline-block;
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
-    margin-right: 6px;
+    margin-right: 4px;
     vertical-align: middle;
   }
 
   .status-dot.off { background: #ff6b6b; }
   .status-dot.on { background: #51cf66; }
-
-  .version-tag-small {
-    position: fixed;
-    bottom: 8px;
-    right: 12px;
-    z-index: 10;
-    font-size: 10px;
-    color: rgba(255,255,255,0.15);
-    display: none;
-  }
 </style>
 </head>
 <body>
 
 <div class="no-camera-bg" id="fallback-bg"></div>
 <video id="camera-feed" autoplay playsinline muted></video>
+<canvas id="game-canvas"></canvas>
 
-<!-- Start screen with big version -->
+<!-- Start screen -->
 <div id="start-screen">
-  <div class="start-version">v2.2.0</div>
-  <div class="start-label">Gyro Debug Build</div>
+  <div class="start-version">v2.3.0</div>
+  <div class="start-label">Dev Build</div>
   <button id="start-btn" onclick="init()">TAP TO START</button>
 </div>
 
-<!-- Normalized 0-1 readout -->
-<div id="debug-hud" class="debug-panel">
+<!-- Gyro debug at bottom -->
+<div id="debug-hud">
   <div class="debug-title">Gyro — Normalized 0–1</div>
   <div class="debug-row">
     <div class="debug-label x-axis">X</div>
@@ -241,37 +225,14 @@
   </div>
 </div>
 
-<!-- Raw degree values -->
-<div id="debug-raw" class="debug-panel">
-  <div class="debug-title">Raw Degrees</div>
-  <div class="raw-row">
-    <span class="raw-label">alpha (yaw)</span>
-    <span class="raw-val" id="raw-alpha">—</span>
-  </div>
-  <div class="raw-row">
-    <span class="raw-label">beta (pitch)</span>
-    <span class="raw-val" id="raw-beta">—</span>
-  </div>
-  <div class="raw-row">
-    <span class="raw-label">gamma (tilt)</span>
-    <span class="raw-val" id="raw-gamma">—</span>
-  </div>
-  <div class="raw-row" style="margin-top:8px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.1);">
-    <span class="raw-label">baseline α</span>
-    <span class="raw-val" id="raw-baseline">—</span>
-  </div>
-</div>
-
 <div id="gyro-status">
   <span class="status-dot off" id="status-dot"></span>
   <span id="status-text">Gyroscope: waiting...</span>
 </div>
 
-<div class="version-tag-small" id="version-small">v2.2.0</div>
-
 <script>
 // ============================================================
-// STATE
+// GYRO STATE
 // ============================================================
 let gyroActive = false;
 let alphaBaseline = null;
@@ -279,10 +240,126 @@ let rawAlpha = 0, rawBeta = 0, rawGamma = 0;
 let normX = 0.5, normY = 0.5, normZ = 0.5;
 
 // ============================================================
-// INIT — permissions FIRST, then camera
+// THREE.JS SETUP
+// ============================================================
+const canvas = document.getElementById('game-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+
+const scene = new THREE.Scene();
+const aspect = window.innerWidth / window.innerHeight;
+const viewH = 14;
+let viewW = viewH * aspect;
+const camera = new THREE.OrthographicCamera(-viewW/2, viewW/2, viewH/2, -viewH/2, 0.1, 100);
+camera.position.z = 10;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+dirLight.position.set(3, 5, 8);
+scene.add(dirLight);
+const rimLight = new THREE.DirectionalLight(0xff4444, 0.3);
+rimLight.position.set(-3, 2, -4);
+scene.add(rimLight);
+
+// ============================================================
+// CAN CREATION
+// ============================================================
+function createCan(isGold) {
+  const group = new THREE.Group();
+  const r = isGold ? 0.3 : 0.28;
+  const h = isGold ? 0.9 : 0.85;
+
+  const bodyMat = new THREE.MeshPhongMaterial({
+    color: isGold ? 0xFFD700 : 0xD40009,
+    specular: 0xffffff, shininess: isGold ? 200 : 100,
+    emissive: isGold ? 0x665500 : 0x330000,
+    emissiveIntensity: isGold ? 0.4 : 0.2
+  });
+  group.add(new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 24), bodyMat));
+
+  const rimMat = new THREE.MeshPhongMaterial({
+    color: isGold ? 0xFFF0A0 : 0xC0C0C0, specular: 0xffffff, shininess: 200
+  });
+  const rimGeo = new THREE.TorusGeometry(r - 0.02, 0.03, 8, 24);
+
+  const topRim = new THREE.Mesh(rimGeo, rimMat);
+  topRim.position.y = h/2; topRim.rotation.x = Math.PI/2;
+  group.add(topRim);
+
+  const bottomRim = topRim.clone();
+  bottomRim.position.y = -h/2;
+  group.add(bottomRim);
+
+  const cap = new THREE.Mesh(new THREE.CircleGeometry(r - 0.02, 24), rimMat);
+  cap.position.y = h/2 + 0.01; cap.rotation.x = -Math.PI/2;
+  group.add(cap);
+
+  if (!isGold) {
+    const stripe = new THREE.Mesh(
+      new THREE.CylinderGeometry(r + 0.005, r + 0.005, 0.15, 24),
+      new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 60 })
+    );
+    stripe.position.y = 0.05;
+    group.add(stripe);
+  }
+
+  if (isGold) {
+    const star = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const sr = i % 2 === 0 ? 0.12 : 0.05;
+      const a = (i * Math.PI) / 5 - Math.PI / 2;
+      i === 0 ? star.moveTo(Math.cos(a)*sr, Math.sin(a)*sr)
+              : star.lineTo(Math.cos(a)*sr, Math.sin(a)*sr);
+    }
+    star.closePath();
+    const starMesh = new THREE.Mesh(
+      new THREE.ShapeGeometry(star),
+      new THREE.MeshPhongMaterial({ color: 0xffffff, emissive: 0xFFFF00, emissiveIntensity: 0.3, side: THREE.DoubleSide })
+    );
+    starMesh.position.set(0, 0, r + 0.01);
+    group.add(starMesh);
+  }
+
+  return group;
+}
+
+// ============================================================
+// CAN SPAWNING & STATE
+// ============================================================
+const cans = [];
+let lastSpawn = 0;
+const SPAWN_INTERVAL = 1200;
+
+function spawnCan(timestamp) {
+  const isGold = Math.random() < 0.12;
+  const mesh = createCan(isGold);
+
+  // Random X across the visible screen width
+  const x = (Math.random() - 0.5) * (viewW - 1);
+  mesh.position.set(x, viewH/2 + 1.5, 0);
+  mesh.rotation.x = Math.random() * Math.PI;
+  mesh.rotation.z = Math.random() * 0.5 - 0.25;
+
+  scene.add(mesh);
+
+  cans.push({
+    mesh,
+    isGold,
+    speed: 2 + Math.random() * 2,
+    rotSpeedX: (Math.random() - 0.5) * 3,
+    rotSpeedZ: (Math.random() - 0.5) * 2,
+    wobble: Math.random() * Math.PI * 2,
+    wobbleSpeed: 1 + Math.random() * 2,
+  });
+}
+
+// ============================================================
+// INIT
 // ============================================================
 async function init() {
-  // 1. Request gyro permission FIRST (iOS requires user gesture)
+  // 1. Gyro permission first (must be in user gesture for iOS)
   const needsPerm = typeof DeviceOrientationEvent !== 'undefined'
     && typeof DeviceOrientationEvent.requestPermission === 'function';
 
@@ -306,7 +383,7 @@ async function init() {
     setStatus(false, 'Gyroscope: not supported');
   }
 
-  // 2. Then camera
+  // 2. Camera
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
@@ -317,18 +394,17 @@ async function init() {
     console.log('Camera not available');
   }
 
-  // 3. Show debug UI
+  // 3. Show UI
   document.getElementById('start-screen').classList.add('hidden');
   document.getElementById('debug-hud').style.display = 'block';
-  document.getElementById('debug-raw').style.display = 'block';
   document.getElementById('gyro-status').style.display = 'block';
-  document.getElementById('version-small').style.display = 'block';
 
-  requestAnimationFrame(update);
+  // 4. Start loop
+  requestAnimationFrame(gameLoop);
 }
 
 // ============================================================
-// ORIENTATION HANDLER
+// GYRO HANDLER
 // ============================================================
 function onOrientation(e) {
   if (e.alpha === null && e.beta === null && e.gamma === null) return;
@@ -344,13 +420,9 @@ function onOrientation(e) {
 
   if (alphaBaseline === null) alphaBaseline = rawAlpha;
 
-  // X: gamma (left/right tilt) -90..90 → 0..1
   normX = Math.max(0, Math.min(1, (rawGamma + 90) / 180));
-
-  // Y: beta (pitch) -90..90 → 0..1
   normY = Math.max(0, Math.min(1, (rawBeta + 90) / 180));
 
-  // Z: alpha relative to baseline -180..180 → 0..1
   let dAlpha = rawAlpha - alphaBaseline;
   if (dAlpha > 180) dAlpha -= 360;
   if (dAlpha < -180) dAlpha += 360;
@@ -358,25 +430,65 @@ function onOrientation(e) {
 }
 
 // ============================================================
-// RENDER LOOP
+// MAIN LOOP
 // ============================================================
-function update() {
-  requestAnimationFrame(update);
+let lastTime = 0;
 
+function gameLoop(timestamp) {
+  requestAnimationFrame(gameLoop);
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+
+  // Spawn
+  if (timestamp - lastSpawn > SPAWN_INTERVAL) {
+    spawnCan(timestamp);
+    lastSpawn = timestamp;
+  }
+
+  // Update cans — just fall, no gyro influence
+  for (let i = cans.length - 1; i >= 0; i--) {
+    const c = cans[i];
+    c.mesh.position.y -= c.speed * dt;
+    c.mesh.rotation.x += c.rotSpeedX * dt;
+    c.mesh.rotation.z += c.rotSpeedZ * dt;
+
+    // Slight wobble
+    c.wobble += c.wobbleSpeed * dt;
+    c.mesh.position.x += Math.sin(c.wobble) * 0.2 * dt;
+
+    // Gold pulse
+    if (c.isGold) {
+      c.mesh.children[0].material.emissiveIntensity = Math.sin(timestamp * 0.005) * 0.15 + 0.4;
+    }
+
+    // Remove when off bottom
+    if (c.mesh.position.y < -viewH/2 - 2) {
+      scene.remove(c.mesh);
+      cans.splice(i, 1);
+    }
+  }
+
+  // Update gyro debug
   document.getElementById('bar-x').style.width = (normX * 100) + '%';
   document.getElementById('bar-y').style.width = (normY * 100) + '%';
   document.getElementById('bar-z').style.width = (normZ * 100) + '%';
-
   document.getElementById('val-x').textContent = normX.toFixed(3);
   document.getElementById('val-y').textContent = normY.toFixed(3);
   document.getElementById('val-z').textContent = normZ.toFixed(3);
 
-  document.getElementById('raw-alpha').textContent = rawAlpha.toFixed(1) + '°';
-  document.getElementById('raw-beta').textContent  = rawBeta.toFixed(1) + '°';
-  document.getElementById('raw-gamma').textContent = rawGamma.toFixed(1) + '°';
-  document.getElementById('raw-baseline').textContent =
-    alphaBaseline !== null ? alphaBaseline.toFixed(1) + '°' : '—';
+  renderer.render(scene, camera);
 }
+
+// ============================================================
+// RESIZE
+// ============================================================
+window.addEventListener('resize', () => {
+  const a = window.innerWidth / window.innerHeight;
+  viewW = viewH * a;
+  camera.left = -viewW/2; camera.right = viewW/2;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
 
 // ============================================================
 // STATUS
