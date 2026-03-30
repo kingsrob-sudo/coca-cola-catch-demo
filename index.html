@@ -12,19 +12,48 @@
   #camera-feed { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
   #game-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
   .no-camera-bg { position: fixed; inset: 0; z-index: 0; background: radial-gradient(ellipse at center, #1a1a1a 0%, #000 100%); }
-  #bucket-container { position: fixed; bottom: -15px; left: 50%; z-index: 0; pointer-events: none; display: none; transform-origin: bottom center; }
-  #bucket-img { width: 220px; height: auto; display: block; }
+  #bucket-container { position: fixed; bottom: 10px; left: 50%; z-index: 0; pointer-events: none; display: none; transform-origin: bottom center; }
+  #bucket-img { width: 330px; height: auto; display: block; }
+
+  /* Bucket bump animation */
+  @keyframes bucketBump {
+    0% { transform: scale(1); }
+    15% { transform: scale(1.12, 0.92); }
+    30% { transform: scale(0.95, 1.06); }
+    45% { transform: scale(1.05, 0.97); }
+    60% { transform: scale(0.98, 1.02); }
+    100% { transform: scale(1); }
+  }
+  .bucket-bump #bucket-img { animation: bucketBump 0.4s ease-out; }
+
+  @keyframes bucketMiniShake {
+    0%{transform:translate(0,0)} 20%{transform:translate(-5px,3px)} 40%{transform:translate(6px,-4px)} 60%{transform:translate(-4px,5px)} 80%{transform:translate(5px,-3px)} 100%{transform:translate(0,0)}
+  }
+
   #score-hud { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); z-index: 10; text-align: center; pointer-events: none; display: none; }
   .score-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 3px; color: rgba(255,255,255,0.4); }
   .score-value { font-family: 'Bebas Neue', sans-serif; font-size: 56px; color: #fff; line-height: 1; text-shadow: 0 2px 20px rgba(0,0,0,0.5); }
-  .catch-flash { position: fixed; z-index: 15; font-family: 'Bebas Neue', sans-serif; font-size: 48px; color: #FFD700; text-shadow: 0 0 30px rgba(255,215,0,0.8); pointer-events: none; animation: floatUp 0.9s ease-out forwards; }
-  @keyframes floatUp { 0%{opacity:1;transform:translate(-50%,0) scale(1)} 100%{opacity:0;transform:translate(-50%,-100px) scale(1.6)} }
+
+  /* Flying score that arcs to the HUD */
+  .score-fly {
+    position: fixed; z-index: 15; pointer-events: none;
+    font-family: 'Bebas Neue', sans-serif; font-size: 42px;
+    color: #FFD700; text-shadow: 0 0 20px rgba(255,215,0,0.8);
+  }
+
   .ice-cube { position: fixed; z-index: 15; pointer-events: none; background: rgba(200,230,255,0.7); border: 1px solid rgba(255,255,255,0.5); border-radius: 2px; box-shadow: inset 0 0 4px rgba(255,255,255,0.4), 0 0 6px rgba(150,200,255,0.3); animation: iceSplash 0.8s ease-out forwards; }
   @keyframes iceSplash { 0%{opacity:1;transform:translate(0,0) rotate(0deg) scale(1)} 100%{opacity:0;transform:translate(var(--px),var(--py)) rotate(var(--rot)) scale(0.3)} }
-  .splash-ring { position: fixed; z-index: 14; pointer-events: none; border: 2px solid rgba(200,230,255,0.5); border-radius: 50%; animation: splashExpand 0.5s ease-out forwards; }
-  @keyframes splashExpand { 0%{opacity:1;width:20px;height:20px;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;width:100px;height:100px;transform:translate(-50%,-50%) scale(1)} }
+
+  /* Big particle burst */
+  .big-particle { position: fixed; z-index: 15; border-radius: 50%; pointer-events: none; animation: bigBurst 0.9s ease-out forwards; }
+  @keyframes bigBurst { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(var(--px),var(--py)) scale(0)} }
+
+  .splash-ring { position: fixed; z-index: 14; pointer-events: none; border: 3px solid rgba(255,255,255,0.7); border-radius: 50%; animation: splashExpand 0.6s ease-out forwards; }
+  @keyframes splashExpand { 0%{opacity:1;width:30px;height:30px;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;width:160px;height:160px;transform:translate(-50%,-50%) scale(1)} }
+
   @keyframes screenShake { 0%{transform:translate(0,0)} 10%{transform:translate(-3px,2px)} 20%{transform:translate(4px,-3px)} 30%{transform:translate(-2px,4px)} 40%{transform:translate(3px,-2px)} 50%{transform:translate(-4px,2px)} 60%{transform:translate(2px,-3px)} 70%{transform:translate(-2px,3px)} 80%{transform:translate(3px,-2px)} 90%{transform:translate(-2px,1px)} 100%{transform:translate(0,0)} }
   .shaking { animation: screenShake 0.35s ease-out; }
+
   #start-screen { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; }
   #start-screen.hidden { display: none; }
   .start-version { font-size: 64px; font-weight: 600; color: rgba(255,255,255,0.9); letter-spacing: 4px; margin-bottom: 8px; }
@@ -64,8 +93,8 @@
 <canvas id="game-canvas"></canvas>
 <div id="score-hud"><div class="score-label">Score</div><div class="score-value" id="score-val">0</div></div>
 <div id="start-screen">
-  <div class="start-version">v3.2.2</div>
-  <div class="start-label">Dev Build — X Inverted + Faster</div>
+  <div class="start-version">v3.3.0</div>
+  <div class="start-label">Dev Build — Juiced Up</div>
   <button id="start-btn" onclick="init()">TAP TO START</button>
 </div>
 <button id="sensor-toggle" onclick="toggleSensors()">[sensors]</button>
@@ -89,10 +118,26 @@ let prevGamma=null,accumulatedX=0;
 let prevAlpha=null,accumulatedZ=0;
 let yOffset=0,xOffset=0,smoothYOffset=0,smoothXOffset=0;
 let xSensitivity=5,ySensitivity=24;
-let score=0,sensorPanelOpen=false;
+let score=0,displayScore=0,targetScore=0,sensorPanelOpen=false;
 let bucketTilt=0,smoothBucketTilt=0,bucketShiftX=0,smoothBucketShiftX=0;
+let scoreCountInterval=null;
 
 function toggleSensors(){const p=document.getElementById('sensor-panel');sensorPanelOpen=!sensorPanelOpen;p.style.display=sensorPanelOpen?'block':'none';if(sensorPanelOpen)p.classList.remove('collapsed');else p.classList.add('collapsed');}
+
+// Score counting animation
+function animateScoreTo(target){
+  targetScore=target;
+  if(scoreCountInterval)return; // already counting
+  scoreCountInterval=setInterval(()=>{
+    if(displayScore<targetScore){
+      displayScore++;
+      document.getElementById('score-val').textContent=displayScore;
+    } else {
+      clearInterval(scoreCountInterval);
+      scoreCountInterval=null;
+    }
+  },30);
+}
 
 const canvas=document.getElementById('game-canvas');
 const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
@@ -132,12 +177,13 @@ function createCan(isGold){
   return group;
 }
 
-const cans=[];let lastSpawn=0;const SPAWN_INTERVAL=1200;
+const cans=[];let lastSpawn=0;
+const SPAWN_INTERVAL=300; // 300ms = 4x original 1200ms = 300% more spawns
 
 function getBucketZone(){
   const img=document.getElementById('bucket-img');if(!img)return null;
   const rect=img.getBoundingClientRect();
-  return{centerX:rect.left+rect.width/2,iceTopY:rect.top,iceCatchY:rect.top+50,catchWidth:rect.width*0.7};
+  return{centerX:rect.left+rect.width/2,iceTopY:rect.top,iceCatchY:rect.top+60,catchWidth:rect.width*0.65};
 }
 
 function spawnCan(){
@@ -159,26 +205,95 @@ function checkBucketCatch(c){
 }
 
 function spawnIceCubes(x,y){
-  for(let i=0;i<10;i++){
+  for(let i=0;i<14;i++){
     const cube=document.createElement('div');cube.className='ice-cube';
-    const w=6+Math.random()*10,h=5+Math.random()*8;
+    const w=6+Math.random()*12,h=5+Math.random()*10;
     cube.style.width=w+'px';cube.style.height=h+'px';
-    cube.style.left=(x-w/2+Math.random()*30-15)+'px';cube.style.top=(y-h/2+Math.random()*20-10)+'px';
-    const angle=(Math.random()-0.5)*Math.PI,dist=30+Math.random()*50;
-    cube.style.setProperty('--px',Math.cos(angle)*dist+'px');cube.style.setProperty('--py',(Math.sin(angle)*dist-30)+'px');cube.style.setProperty('--rot',(Math.random()*360)+'deg');
+    cube.style.left=(x-w/2+Math.random()*40-20)+'px';cube.style.top=(y-h/2+Math.random()*20-10)+'px';
+    const angle=(Math.random()-0.5)*Math.PI,dist=40+Math.random()*70;
+    cube.style.setProperty('--px',Math.cos(angle)*dist+'px');cube.style.setProperty('--py',(Math.sin(angle)*dist-40)+'px');cube.style.setProperty('--rot',(Math.random()*360)+'deg');
     document.body.appendChild(cube);setTimeout(()=>cube.remove(),800);
   }
 }
 
+function spawnBigParticles(x,y,isGold){
+  const colors=isGold?['#FFD700','#FFF0A0','#FFAA00','#fff']:['#F40009','#ff4444','#ffffff','#cc0000'];
+  for(let i=0;i<18;i++){
+    const p=document.createElement('div');p.className='big-particle';
+    const sz=5+Math.random()*10;p.style.width=sz+'px';p.style.height=sz+'px';
+    p.style.left=x+'px';p.style.top=y+'px';
+    p.style.background=colors[Math.floor(Math.random()*colors.length)];
+    const angle=(i/18)*Math.PI*2+Math.random()*0.4;
+    const dist=60+Math.random()*80;
+    p.style.setProperty('--px',Math.cos(angle)*dist+'px');
+    p.style.setProperty('--py',Math.sin(angle)*dist+'px');
+    document.body.appendChild(p);setTimeout(()=>p.remove(),900);
+  }
+}
+
+function flyScoreToHud(pts,startX,startY,isGold){
+  const hud=document.getElementById('score-hud');
+  const hudRect=hud.getBoundingClientRect();
+  const targetX=hudRect.left+hudRect.width/2;
+  const targetY=hudRect.top+hudRect.height/2;
+
+  const fly=document.createElement('div');
+  fly.className='score-fly';
+  fly.textContent='+'+pts;
+  if(isGold)fly.style.color='#FFD700';
+  fly.style.left=startX+'px';fly.style.top=startY+'px';
+  fly.style.transition='all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1)';
+  document.body.appendChild(fly);
+
+  // Trigger the fly animation
+  requestAnimationFrame(()=>{
+    fly.style.left=targetX+'px';
+    fly.style.top=targetY+'px';
+    fly.style.fontSize='20px';
+    fly.style.opacity='0.6';
+  });
+
+  // When it arrives, trigger score count
+  setTimeout(()=>{
+    fly.remove();
+    score+=pts;
+    animateScoreTo(score);
+  },600);
+}
+
+function bucketBump(){
+  const container=document.getElementById('bucket-container');
+  container.classList.remove('bucket-bump');
+  void container.offsetWidth;
+  container.classList.add('bucket-bump');
+  setTimeout(()=>container.classList.remove('bucket-bump'),400);
+}
+
 function onCatch(can){
-  can.caught=true;const pts=can.isGold?50:10;score+=pts;
-  document.getElementById('score-val').textContent=score;
+  can.caught=true;
+  const pts=can.isGold?50:10;
   const sp=worldToScreen(can.mesh.position);
-  const f=document.createElement('div');f.className='catch-flash';f.textContent='+'+pts;if(can.isGold)f.style.color='#FFD700';f.style.left=sp.x+'px';f.style.top=(sp.y-20)+'px';document.body.appendChild(f);setTimeout(()=>f.remove(),900);
-  const ring=document.createElement('div');ring.className='splash-ring';ring.style.left=sp.x+'px';ring.style.top=sp.y+'px';document.body.appendChild(ring);setTimeout(()=>ring.remove(),500);
+
+  // Big particle burst
+  spawnBigParticles(sp.x,sp.y,can.isGold);
+
+  // Ice cubes
   spawnIceCubes(sp.x,sp.y);
-  document.body.classList.remove('shaking');void document.body.offsetWidth;document.body.classList.add('shaking');setTimeout(()=>document.body.classList.remove('shaking'),350);
-  if(navigator.vibrate)navigator.vibrate(60);
+
+  // Splash ring
+  const ring=document.createElement('div');ring.className='splash-ring';ring.style.left=sp.x+'px';ring.style.top=sp.y+'px';
+  document.body.appendChild(ring);setTimeout(()=>ring.remove(),600);
+
+  // Bucket bump + shake
+  bucketBump();
+  document.body.classList.remove('shaking');void document.body.offsetWidth;
+  document.body.classList.add('shaking');setTimeout(()=>document.body.classList.remove('shaking'),350);
+  if(navigator.vibrate)navigator.vibrate(80);
+
+  // Flying score → HUD
+  flyScoreToHud(pts,sp.x,sp.y-20,can.isGold);
+
+  // Shrink can
   const start=performance.now(),m=can.mesh;
   (function shrink(t){const s=Math.max(0,1-(t-start)/200);m.scale.set(s,s,s);s>0?requestAnimationFrame(shrink):scene.remove(m);})(start);
 }
@@ -226,11 +341,14 @@ function gameLoop(timestamp){
   smoothYOffset+=(yOffset-smoothYOffset)*0.1;
   cam.position.x=smoothXOffset;cam.position.y=smoothYOffset;
 
+  // Bucket movement — doubled from before (0.3→0.6 shift, 0.15→0.3 rotation)
   smoothBucketTilt+=(bucketTilt-smoothBucketTilt)*0.08;
   smoothBucketShiftX+=(bucketShiftX-smoothBucketShiftX)*0.08;
   const container=document.getElementById('bucket-container');
-  if(container){
-    const tiltDeg=smoothBucketTilt*0.15;const shiftPx=smoothBucketShiftX*0.3;const scalePulse=1+Math.abs(smoothBucketTilt)*0.001;
+  if(container&&!container.classList.contains('bucket-bump')){
+    const tiltDeg=smoothBucketTilt*0.3;
+    const shiftPx=smoothBucketShiftX*0.6;
+    const scalePulse=1+Math.abs(smoothBucketTilt)*0.002;
     container.style.transform='translateX(calc(-50% + '+shiftPx+'px)) rotate('+tiltDeg+'deg) scale('+scalePulse+')';
   }
 
