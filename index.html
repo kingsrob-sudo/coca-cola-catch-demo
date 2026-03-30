@@ -44,7 +44,6 @@
     background: radial-gradient(ellipse at center, #1a1a1a 0%, #000 100%);
   }
 
-  /* Start screen */
   #start-screen {
     position: fixed;
     inset: 0;
@@ -89,7 +88,6 @@
 
   #start-btn:active { transform: scale(0.96); }
 
-  /* Gyro debug — bottom of screen */
   #debug-hud {
     position: fixed;
     bottom: 30px;
@@ -166,7 +164,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Gyro status */
   #gyro-status {
     position: fixed;
     bottom: 10px;
@@ -198,14 +195,12 @@
 <video id="camera-feed" autoplay playsinline muted></video>
 <canvas id="game-canvas"></canvas>
 
-<!-- Start screen -->
 <div id="start-screen">
-  <div class="start-version">v2.3.0</div>
-  <div class="start-label">Dev Build</div>
+  <div class="start-version">v2.4.0</div>
+  <div class="start-label">Dev Build — Y Axis Test</div>
   <button id="start-btn" onclick="init()">TAP TO START</button>
 </div>
 
-<!-- Gyro debug at bottom -->
 <div id="debug-hud">
   <div class="debug-title">Gyro — Normalized 0–1</div>
   <div class="debug-row">
@@ -236,8 +231,17 @@
 // ============================================================
 let gyroActive = false;
 let alphaBaseline = null;
+let betaBaseline = null;
 let rawAlpha = 0, rawBeta = 0, rawGamma = 0;
 let normX = 0.5, normY = 0.5, normZ = 0.5;
+
+// Y offset applied to the Three.js camera
+// This is the key: moving the camera up/down based on pitch
+let yOffset = 0;
+let smoothYOffset = 0;
+
+// How many world units the camera shifts per full tilt range
+const Y_SENSITIVITY = 12;
 
 // ============================================================
 // THREE.JS SETUP
@@ -252,8 +256,8 @@ const scene = new THREE.Scene();
 const aspect = window.innerWidth / window.innerHeight;
 const viewH = 14;
 let viewW = viewH * aspect;
-const camera = new THREE.OrthographicCamera(-viewW/2, viewW/2, viewH/2, -viewH/2, 0.1, 100);
-camera.position.z = 10;
+const cam = new THREE.OrthographicCamera(-viewW/2, viewW/2, viewH/2, -viewH/2, 0.1, 100);
+cam.position.z = 10;
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.7));
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -326,19 +330,19 @@ function createCan(isGold) {
 }
 
 // ============================================================
-// CAN SPAWNING & STATE
+// CAN STATE
 // ============================================================
 const cans = [];
 let lastSpawn = 0;
 const SPAWN_INTERVAL = 1200;
 
-function spawnCan(timestamp) {
+function spawnCan() {
   const isGold = Math.random() < 0.12;
   const mesh = createCan(isGold);
 
-  // Random X across the visible screen width
   const x = (Math.random() - 0.5) * (viewW - 1);
-  mesh.position.set(x, viewH/2 + 1.5, 0);
+  // Spawn above the camera's current view, accounting for Y offset
+  mesh.position.set(x, smoothYOffset + viewH/2 + 1.5, 0);
   mesh.rotation.x = Math.random() * Math.PI;
   mesh.rotation.z = Math.random() * 0.5 - 0.25;
 
@@ -359,7 +363,7 @@ function spawnCan(timestamp) {
 // INIT
 // ============================================================
 async function init() {
-  // 1. Gyro permission first (must be in user gesture for iOS)
+  // 1. Gyro permission first
   const needsPerm = typeof DeviceOrientationEvent !== 'undefined'
     && typeof DeviceOrientationEvent.requestPermission === 'function';
 
@@ -399,7 +403,6 @@ async function init() {
   document.getElementById('debug-hud').style.display = 'block';
   document.getElementById('gyro-status').style.display = 'block';
 
-  // 4. Start loop
   requestAnimationFrame(gameLoop);
 }
 
@@ -419,14 +422,30 @@ function onOrientation(e) {
   rawGamma = e.gamma || 0;
 
   if (alphaBaseline === null) alphaBaseline = rawAlpha;
+  if (betaBaseline === null) betaBaseline = rawBeta;
 
+  // X: gamma (left/right tilt) -90..90 → 0..1
   normX = Math.max(0, Math.min(1, (rawGamma + 90) / 180));
-  normY = Math.max(0, Math.min(1, (rawBeta + 90) / 180));
 
+  // Y: beta relative to baseline
+  // Positive delta = looking up from starting position
+  // Negative delta = looking down from starting position
+  // Map to 0..1 where 0.5 = starting position
+  let deltaBeta = rawBeta - betaBaseline;
+  // Clamp to reasonable range (-90 to +90 degrees of movement)
+  deltaBeta = Math.max(-90, Math.min(90, deltaBeta));
+  normY = Math.max(0, Math.min(1, (deltaBeta + 90) / 180));
+
+  // Z: alpha relative to baseline -180..180 → 0..1
   let dAlpha = rawAlpha - alphaBaseline;
   if (dAlpha > 180) dAlpha -= 360;
   if (dAlpha < -180) dAlpha += 360;
   normZ = Math.max(0, Math.min(1, (dAlpha + 180) / 360));
+
+  // Compute Y offset for camera
+  // normY > 0.5 = looking up = camera moves up = cans appear to slide down
+  // normY < 0.5 = looking down = camera moves down = cans appear to slide up
+  yOffset = (normY - 0.5) * 2 * Y_SENSITIVITY;
 }
 
 // ============================================================
@@ -439,36 +458,40 @@ function gameLoop(timestamp) {
   const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
   lastTime = timestamp;
 
+  // Smooth the camera offset
+  smoothYOffset += (yOffset - smoothYOffset) * 0.1;
+
+  // Move camera vertically based on pitch
+  cam.position.y = smoothYOffset;
+
   // Spawn
   if (timestamp - lastSpawn > SPAWN_INTERVAL) {
-    spawnCan(timestamp);
+    spawnCan();
     lastSpawn = timestamp;
   }
 
-  // Update cans — just fall, no gyro influence
+  // Update cans
   for (let i = cans.length - 1; i >= 0; i--) {
     const c = cans[i];
     c.mesh.position.y -= c.speed * dt;
     c.mesh.rotation.x += c.rotSpeedX * dt;
     c.mesh.rotation.z += c.rotSpeedZ * dt;
 
-    // Slight wobble
     c.wobble += c.wobbleSpeed * dt;
     c.mesh.position.x += Math.sin(c.wobble) * 0.2 * dt;
 
-    // Gold pulse
     if (c.isGold) {
       c.mesh.children[0].material.emissiveIntensity = Math.sin(timestamp * 0.005) * 0.15 + 0.4;
     }
 
-    // Remove when off bottom
-    if (c.mesh.position.y < -viewH/2 - 2) {
+    // Remove when well below the camera's current view
+    if (c.mesh.position.y < smoothYOffset - viewH/2 - 3) {
       scene.remove(c.mesh);
       cans.splice(i, 1);
     }
   }
 
-  // Update gyro debug
+  // Update debug
   document.getElementById('bar-x').style.width = (normX * 100) + '%';
   document.getElementById('bar-y').style.width = (normY * 100) + '%';
   document.getElementById('bar-z').style.width = (normZ * 100) + '%';
@@ -476,7 +499,7 @@ function gameLoop(timestamp) {
   document.getElementById('val-y').textContent = normY.toFixed(3);
   document.getElementById('val-z').textContent = normZ.toFixed(3);
 
-  renderer.render(scene, camera);
+  renderer.render(scene, cam);
 }
 
 // ============================================================
@@ -485,8 +508,8 @@ function gameLoop(timestamp) {
 window.addEventListener('resize', () => {
   const a = window.innerWidth / window.innerHeight;
   viewW = viewH * a;
-  camera.left = -viewW/2; camera.right = viewW/2;
-  camera.updateProjectionMatrix();
+  cam.left = -viewW/2; cam.right = viewW/2;
+  cam.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
